@@ -1,0 +1,16 @@
+# Compiled output
+/bin/
+/obj/
+*.exe
+*.exe~
+*.dll
+*.o
+*.obj
+
+# Database files
+/data/
+*.idx
+*.dat
+
+# IDE files
+.vscode/
