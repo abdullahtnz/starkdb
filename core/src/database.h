@@ -9,7 +9,10 @@ typedef struct Database {
     BTree *index;
     Storage *storage;
     char *name;
+    uint64_t total_keys;      // Add this
+    uint64_t total_data_size;
 } Database;
+
 
 // Database operations
 Database *db_open(const char *db_name);
