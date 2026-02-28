@@ -33,16 +33,17 @@ BTree *btree_create(Pager *pager) {
     
     tree->pager = pager;
     
-    // Create root node (leaf initially)
-    tree->root_page_num = pager_allocate_page(pager);
-    if (tree->root_page_num == INVALID_PAGE) {
-        free(tree);
-        return NULL;
+    // Check if database already has a root
+    if (pager->num_pages > 0) {
+        // Existing database - root is page 0
+        tree->root_page_num = 0;
+    } else {
+        // New database - create root
+        tree->root_page_num = pager_allocate_page(pager);
+        void *root_node = pager_get_page(pager, tree->root_page_num);
+        initialize_leaf_node(root_node);
+        ((LeafNode *)root_node)->header.is_root = 1;
     }
-    
-    void *root_node = pager_get_page(pager, tree->root_page_num);
-    initialize_leaf_node(root_node);
-    ((LeafNode *)root_node)->header.is_root = 1;
     
     return tree;
 }

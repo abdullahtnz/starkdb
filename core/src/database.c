@@ -64,6 +64,8 @@ DB_Result db_close(Database *db) {
     pager_close(db->index->pager);
     pager_close(db->storage->pager);
     
+    free(db->index);
+    free(db->storage);
     free(db->name);
     free(db);
     

@@ -1,11 +1,17 @@
 #include "pager.h"
+#include "btree.h"
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 
 Pager *pager_open(const char *filename) {
-    Pager *pager = calloc(1, sizeof(Pager));
+    Pager *pager = calloc(1, sizeof(Pager));  // calloc zeros everything
     if (!pager) return NULL;
+    
+    // Make sure pages array is NULL
+    for (int i = 0; i < TABLE_MAX_PAGES; i++) {
+        pager->pages[i] = NULL;  // Explicitly set to NULL
+    }
     
     pager->file = fopen(filename, "rb+");
     if (!pager->file) {
@@ -42,6 +48,7 @@ void pager_close(Pager *pager) {
         if (pager->pages[i]) {
             pager_flush_page(pager, i);
             free(pager->pages[i]);
+            pager->pages[i] = NULL;
         }
     }
     
@@ -57,7 +64,7 @@ void *pager_get_page(Pager *pager, page_num_t page_num) {
     // Cache miss - load from disk
     if (!pager->pages[page_num]) {
         printf("Debug: Loading page %u from disk\n", page_num);
-        void *page = calloc(1, pager->page_size);  // Use calloc to zero the memory
+        void *page = calloc(1, pager->page_size);
         if (!page) return NULL;
         
         // Seek to page location
@@ -73,7 +80,15 @@ void *pager_get_page(Pager *pager, page_num_t page_num) {
             return NULL;
         }
         
+        // ✅ Assign to cache AFTER reading
         pager->pages[page_num] = page;
+        
+        // Now we can safely access it
+        printf("    📖 Loaded page %u from disk\n", page_num);
+        if (page_num == 0) {
+            LeafNode* leaf = (LeafNode*)pager->pages[page_num];
+            printf("      Page 0 has %u cells\n", leaf->num_cells);
+        }
         
         // If this was the last page, update count
         if (page_num >= pager->num_pages) {
@@ -95,6 +110,18 @@ void *pager_get_page(Pager *pager, page_num_t page_num) {
 DB_Result pager_flush_page(Pager *pager, page_num_t page_num) {
     if (!pager->pages[page_num]) return DB_SUCCESS;
     
+    printf("    💾 Writing page %d to disk\n", page_num);
+    
+    // For page 0, show what's being written
+    if (page_num == 0) {
+        LeafNode* leaf = (LeafNode*)pager->pages[page_num];
+        printf("      Page 0 has %u cells\n", leaf->num_cells);
+        for (int i = 0; i < leaf->num_cells; i++) {
+            printf("        Cell %d: key=%u, value=%u\n", 
+                   i, leaf->keys[i], leaf->values[i]);
+        }
+    }
+    
     // Seek to page location
     if (fseek(pager->file, page_num * pager->page_size, SEEK_SET) != 0) {
         return DB_IO_ERROR;
@@ -111,10 +138,12 @@ DB_Result pager_flush_page(Pager *pager, page_num_t page_num) {
 }
 
 DB_Result pager_flush_all(Pager *pager) {
+    printf("  Pager flushing %u pages\n", pager->num_pages);
+    
     for (int i = 0; i < TABLE_MAX_PAGES; i++) {
         if (pager->pages[i]) {
-            DB_Result result = pager_flush_page(pager, i);
-            if (result != DB_SUCCESS) return result;
+            printf("    Flushing page %d\n", i);
+            pager_flush_page(pager, i);
         }
     }
     

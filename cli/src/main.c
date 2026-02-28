@@ -8,38 +8,43 @@ void print_help() {
     printf("\n║        URAGE Database CLI            ║");
     printf("\n╚══════════════════════════════════════╝");
     
-    printf("\n\n┌─ 📦 Type System Commands ─────────────────┐");
+    printf("\n\n┌──────────────── 📦 Type System Commands ────────────────────┐");
     printf("\n│  define <name> { <fields> }  - Define a new struct type");
     printf("\n│  undefine <name>             - Delete a type definition");
     printf("\n│  structs                     - List all defined types");
     printf("\n│  desc <name>                  - Describe a type's fields");
-    printf("\n└────────────────────────────────────────────┘");
+    printf("\n└──────────────────────────────────────────────────────────────┘");
     
-    printf("\n\n┌─ 📝 Data Commands (with types) ───────────┐");
+    printf("\n\n┌────────── 📝 Data Commands (with types) ────────────────┐");
     printf("\n│  add <type> <key> <field=value...>  - Add typed data");
     printf("\n│  get <type> <key>                   - Get typed data");
-    printf("\n└────────────────────────────────────────────┘");
+    printf("\n└───────────────────────────────────────────────────────────┘");
     
-    printf("\n\n┌─ 🔢 Numeric Key Commands ─────────────────┐");
+    printf("\n\n┌─────────────── 🔢 Numeric Key Commands ────────────────────┐");
     printf("\n│  addn <key> <value>           - Insert with numeric key");
     printf("\n│  getn <key>                    - Retrieve with numeric key");
     printf("\n│  deln <key>                    - Delete with numeric key");
     printf("\n│  existsn <key>                  - Check numeric key");
-    printf("\n└────────────────────────────────────────────┘");
+    printf("\n└──────────────────────────────────────────────────────────────┘");
 
-    printf("\n\n┌─ 🔤 String Key Commands ──────────────────┐");
+    printf("\n\n┌─ 🔤 String Key Commands ──────────────────────────────┐");
     printf("\n│  adds <key> <value>        - Insert with string key");
     printf("\n│  gets <key>                 - Retrieve with string key");
     printf("\n│  dels <key>                 - Delete with string key");
     printf("\n│  exists_str <key>            - Check string key");
-    printf("\n└────────────────────────────────────────────┘");
+    printf("\n└─────────────────────────────────────────────────────────┘");
+
+    printf("\n\n────🔄 Transaction Commands ─────────────────────────");
+    printf("  begin                    - Start a transaction\n");
+    printf("  commit                   - Commit current transaction\n");
+    printf("  rollback                 - Rollback current transaction\n");
     
-    printf("\n\n┌─ 📊 General Commands ──────────────────────┐");
+    printf("\n\n┌────────── 📊 General Commands ──────────────────────┐");
     printf("\n│  stats                       - Show database stats");
     printf("\n│  sync                        - Flush to disk");
     printf("\n│  help                        - Show this help");
     printf("\n│  exit                        - Exit program");
-    printf("\n└────────────────────────────────────────────┘\n\n");
+    printf("\n└────────────────────────────────────────────────────────┘\n\n");
 }
 
 int main(int argc, char* argv[]) {
@@ -58,7 +63,7 @@ int main(int argc, char* argv[]) {
     printf("\n╔══════════════════════════════════════╗");
     printf("\n║        URAGE Database CLI            ║");
     printf("\n╚══════════════════════════════════════╝");
-    printf("\n")
+    printf("\n");
 
     
     char line[512];
@@ -327,6 +332,29 @@ else if (strcmp(cmd, "exists_str") == 0) {
         printf("Usage: exists_str <str_key>\n");
     }
 }
+
+    // TRansaction part
+    else if (strcmp(cmd, "begin") == 0) {
+        urage_result_t r = urage_begin(db);
+        if (r == URAGE_OK)
+            printf("✅ Transaction started\n");
+        else
+            printf("❌ Failed to start transaction\n");
+    }
+    else if (strcmp(cmd, "commit") == 0) {
+        urage_result_t r = urage_commit(db);
+        if (r == URAGE_OK)
+            printf("✅ Transaction committed\n");
+        else
+            printf("❌ No active transaction\n");
+    }
+    else if (strcmp(cmd, "rollback") == 0) {
+        urage_result_t r = urage_rollback(db);
+        if (r == URAGE_OK)
+            printf("✅ Transaction rolled back\n");
+        else
+            printf("❌ No active transaction\n");
+    }
         
         // ===== GENERAL COMMANDS =====
         else if (strcmp(cmd, "stats") == 0) {

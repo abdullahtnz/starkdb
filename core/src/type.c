@@ -109,13 +109,12 @@ TypeDef* type_get(urage_db_t* db, const char* name) {
     
     char type_key[256];
     snprintf(type_key, sizeof(type_key), "type:%s", name);
-    printf("🔑 Looking up type key: '%s'\n", type_key);
     
     // First, get the size needed
     size_t size = 0;
     urage_result_t result = urage_get_str(db, type_key, NULL, &size);
-    printf("📊 type_get: urage_get_str returned %d, size=%zu\n", result, size);
     
+    // urage_get_str returns URAGE_ERROR but sets size when data exists
     if (size == 0) {
         printf("❌ Type key '%s' not found\n", type_key);
         return NULL;
@@ -131,11 +130,9 @@ TypeDef* type_get(urage_db_t* db, const char* name) {
     result = urage_get_str(db, type_key, type, &size);
     if (result != URAGE_OK) {
         printf("❌ Failed to get type data: %d\n", result);
-        free(type);
+        free(type);  // ← Make sure to free on error!
         return NULL;
     }
-    
-    printf("✅ Type '%s' loaded (ID: %u, fields: %u)\n", type->name, type->id, type->field_count);
     
     return type;
 }

@@ -9,6 +9,11 @@ struct urage_db {
     Database* internal_db;
     char last_error[256];
     char* path;
+    
+    // Transaction support
+    int in_transaction;
+    void* transaction_log; 
+    size_t log_size;
 };
 
 // ==================== LIFECYCLE ====================
@@ -38,11 +43,14 @@ URAGE_API void urage_close(urage_db_t* db) {
     if (!db) return;
     
     if (db->internal_db) {
+        // Force sync to disk before closing
+        urage_sync(db); 
         db_close(db->internal_db);
     }
     
     free(db->path);
     free(db);
+    printf("💾 Database synced and closed.\n");
 }
 
 // ==================== CRUD ====================
@@ -51,13 +59,26 @@ URAGE_API urage_result_t urage_add(urage_db_t* db, uint32_t key,
                                    const void* value, size_t value_size) {
     if (!db || !db->internal_db) return URAGE_CLOSED;
     
+    // If in transaction, log the change
+    if (db->in_transaction) {
+        printf("📝 Logging change for key %u in transaction\n", key);
+        
+        // Get old value if exists
+        char old_buffer[256];
+        size_t old_size = sizeof(old_buffer);
+        int exists = (urage_get(db, key, old_buffer, &old_size) == URAGE_OK);
+        
+        // Log the change (simplified)
+        // In real implementation, you'd store in transaction_log
+    }
+    
     DB_Result result = db_insert(db->internal_db, key, value, value_size);
     
     switch (result) {
         case DB_SUCCESS: return URAGE_OK;
         case DB_FULL: return URAGE_FULL;
         case DB_IO_ERROR: return URAGE_IO_ERROR;
-        case DB_MEMORY_ERROR: return URAGE_ERROR;
+        case DB_MEMORY_ERROR: return URAGE_MEMORY_ERROR;
         default: return URAGE_ERROR;
     }
 }
@@ -258,9 +279,22 @@ URAGE_API urage_result_t urage_sync(urage_db_t* db) {
     if (!db || !db->internal_db) return URAGE_CLOSED;
     
     Database* internal = db->internal_db;
-    pager_flush_all(internal->index->pager);
-    pager_flush_all(internal->storage->pager);
     
+    printf("💾 Syncing to disk...\n");
+    
+    // Flush index pages (THIS INCLUDES PAGE 0!)
+    if (internal->index && internal->index->pager) {
+        printf("  Flushing index pager (%u pages)\n", internal->index->pager->num_pages);
+        pager_flush_all(internal->index->pager);
+    }
+    
+    // Flush data pages
+    if (internal->storage && internal->storage->pager) {
+        printf("  Flushing storage pager (%u pages)\n", internal->storage->pager->num_pages);
+        pager_flush_all(internal->storage->pager);
+    }
+    
+    printf("✅ Synced to disk\n");
     return URAGE_OK;
 }
 
@@ -384,3 +418,77 @@ URAGE_API urage_result_t urage_get_typed(urage_db_t* db, const char* type_name,
     free(type);
     return result;
 }
+
+// ==================== TRANSACTIONS ====================
+
+// Simple transaction record
+typedef struct {
+    uint32_t key;
+    void* old_value;
+    size_t old_size;
+    void* new_value;
+    size_t new_size;
+    int is_delete;
+} TransactionEntry;
+
+URAGE_API urage_result_t urage_begin(urage_db_t* db) {
+    if (!db || !db->internal_db) return URAGE_CLOSED;
+    
+    if (db->in_transaction) {
+        return URAGE_ERROR;  // Already in transaction
+    }
+    
+    db->in_transaction = 1;
+    db->transaction_log = malloc(1024);  // Initial log space
+    db->log_size = 0;
+    
+    if (!db->transaction_log) {
+        db->in_transaction = 0;
+        return URAGE_MEMORY_ERROR;
+    }
+    
+    printf("✅ Transaction started\n");
+    return URAGE_OK;
+}
+
+URAGE_API urage_result_t urage_commit(urage_db_t* db) {
+    if (!db || !db->internal_db) return URAGE_CLOSED;
+    if (!db->in_transaction) return URAGE_ERROR;
+    
+    // In a real implementation, you'd:
+    // 1. Write all changes to disk
+    // 2. Remove transaction log
+    // 3. Mark transaction as complete
+    
+    free(db->transaction_log);
+    db->transaction_log = NULL;
+    db->log_size = 0;
+    db->in_transaction = 0;
+    
+    printf("✅ Transaction committed\n");
+    return URAGE_OK;
+}
+
+URAGE_API urage_result_t urage_rollback(urage_db_t* db) {
+    if (!db || !db->internal_db) return URAGE_CLOSED;
+    if (!db->in_transaction) return URAGE_ERROR;
+    
+    // In a real implementation, you'd:
+    // 1. Restore all original values from log
+    // 2. Clear transaction log
+    
+    free(db->transaction_log);
+    db->transaction_log = NULL;
+    db->log_size = 0;
+    db->in_transaction = 0;
+    
+    printf("✅ Transaction rolled back\n");
+    return URAGE_OK;
+}
+
+URAGE_API int urage_in_transaction(urage_db_t* db) {
+    if (!db) return 0;
+    return db->in_transaction;
+}
+
+

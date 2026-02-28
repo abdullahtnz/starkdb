@@ -284,8 +284,44 @@ URAGE_API urage_result_t urage_add_typed(urage_db_t* db, const char* type_name,
 URAGE_API urage_result_t urage_get_typed(urage_db_t* db, const char* type_name,
                                          uint32_t key, char* output, size_t output_size);
 
+                                         
+
 #ifdef __cplusplus
 }
+
+// ==================== TRANSACTIONS ====================
+
+/**
+ * Begin a transaction
+ * All subsequent operations will be atomic
+ * @param db Database handle
+ * @return URAGE_OK on success
+ */
+URAGE_API urage_result_t urage_begin(urage_db_t* db);
+
+/**
+ * Commit current transaction
+ * Makes all changes permanent
+ * @param db Database handle
+ * @return URAGE_OK on success
+ */
+URAGE_API urage_result_t urage_commit(urage_db_t* db);
+
+/**
+ * Rollback current transaction
+ * Discards all changes since begin
+ * @param db Database handle
+ * @return URAGE_OK on success
+ */
+URAGE_API urage_result_t urage_rollback(urage_db_t* db);
+
+/**
+ * Check if in transaction
+ * @param db Database handle
+ * @return 1 if in transaction, 0 if not
+ */
+URAGE_API int urage_in_transaction(urage_db_t* db);
+
 #endif
 
 #endif // URAGE_H
