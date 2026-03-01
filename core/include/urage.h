@@ -63,6 +63,8 @@ URAGE_API void urage_close(urage_db_t* db);
 URAGE_API urage_result_t urage_put(urage_db_t* db, uint32_t key, 
                                    const void* value, size_t value_size);
 
+URAGE_API urage_result_t urage_add(urage_db_t* db, uint32_t key, 
+                                   const void* value, size_t value_size);
 /**
  * Get value by key
  * @param db Database handle

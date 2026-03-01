@@ -1,0 +1,4 @@
+/usr/local/include/urage.hpp
+/usr/local/lib/liburage.so
+/usr/local/bin/urage_cli
+/usr/local/include/urage.h

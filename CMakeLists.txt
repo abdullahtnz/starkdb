@@ -43,6 +43,20 @@ target_link_libraries(urage_cli PRIVATE urage)
 # Include the public API header for CLI
 target_include_directories(urage_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
 
+
+
+# ==================== C++ Bindings ====================
+
+# Install C++ header
+install(FILES ${CMAKE_SOURCE_DIR}/bindings/cpp/urage.hpp 
+        DESTINATION include)
+
+# Optionally build examples
+option(BUILD_CPP_EXAMPLES "Build C++ examples" OFF)
+if(BUILD_CPP_EXAMPLES)
+    add_subdirectory(examples/cpp)
+endif()
+
 # ==================== INSTALL ====================
 
 install(TARGETS urage urage_cli)

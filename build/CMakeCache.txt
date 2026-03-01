@@ -14,6 +14,9 @@
 # EXTERNAL cache entries
 ########################
 
+//Build C++ examples
+BUILD_CPP_EXAMPLES:BOOL=OFF
+
 //Path to a program.
 CMAKE_ADDR2LINE:FILEPATH=/usr/bin/addr2line
 
