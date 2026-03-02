@@ -113,13 +113,16 @@ Installation process already covers almost everything. All you need to do is sim
 
     
    addn key value -> **add** numeric key with value (value can be both string and num)
+   
    getn key -> **get** numeric key and its value
    deln key -> **delete** numeric key and its value
    existsn -> **check** if a numeric key exist or not
 
 ### String key commands
 adds key value -> **add** string key with value (value can be both string and num)
+
 gets key -> **gets** string key and its value
+
 dels key -> **delete** string key and its value
 exist_str -> **check** if a string key exist or not
 
@@ -128,11 +131,13 @@ exist_str -> **check** if a string key exist or not
 > Types are user-defined, flexible structures.
 
 define name { field1 field1's data type field2 field2's data type } -> **define** a new type
+
 undefine name -> **delete** a type
 desc name -> **see** a type and its fields
 
 ### Adding/Getting a type data
 add typename key field1=value field2=value -> **add** item as type
+
 get typename key -> **get** a type's specific item
 
 <hr>
@@ -314,12 +319,4 @@ This is the most important part, because databases don't just stay there as it i
 
 If you have any questions, advices or want to report an issue, feel completely free to contact:
 novruzluabdullah03@gmail.com
-
-
-
-
-
-
-
-
 
