@@ -45,7 +45,7 @@ URAGE works with .dat and .idx files to save data. It supports *ACID properties*
     
     # 2. Download and build
 
-    git clone https://github.com/yourname/urage.git
+    git clone https://github.com/abdullahtnz/urage.git
     cd urage
     mkdir build
     cd build
