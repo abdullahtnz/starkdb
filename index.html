@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel = "icon" type = "image/png" href = "assets/uragelogo.png">
+    <link rel = "icon" type = "image/png" href = "assets/starklogo.png">
     <!-- For apple devices -->
-    <link rel = "apple-touch-icon" type = "image/png" href = "assets/uragelogo.png"/>
-<title>URAGE</title>
+    <link rel = "apple-touch-icon" type = "image/png" href = "assets/starklogo.png"/>
+<title>STARKDB</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -465,9 +465,9 @@
 
   table td:first-child { color: var(--text); font-weight: 600; }
 
-  /* Highlight URAGE rows */
-  table tr.urage-row td { color: var(--accent); }
-  table tr.urage-row td:first-child { color: var(--accent); }
+  /* Highlight STARK rows */
+  table tr.stark-row td { color: var(--accent); }
+  table tr.stark-row td:first-child { color: var(--accent); }
 
   .check { color: #47ff8a; }
   .cross { color: #ff4747; }
@@ -759,7 +759,7 @@
   <div class="badge">v1.1.0 · Open Source · MIT License</div>
 
   <h1 class="hero-title">
-    <span class="u">U</span><span class="rage">RAGE</span>
+    <span class="rage">STARK</span><span class="u">DB</span>
   </h1>
 
   <p class="hero-subtitle">
@@ -786,14 +786,14 @@
 <!-- WORKFLOW -->
 <section>
   <div class="section-tag">Overview</div>
-  <h2>How URAGE Works</h2>
+  <h2>How STARK Works</h2>
   <div class="workflow">
     <p>
-      URAGE works with <em>.dat</em> and <em>.idx</em> files to save data. It supports <em>ACID properties</em>, ensuring safe and reliable data persistence. After building URAGE, users can add data via either the <em>URAGE CLI</em> or directly through <em>C++ code</em>.
+      STARK works with <em>.dat</em> and <em>.idx</em> files to save data. It supports <em>ACID properties</em>, ensuring safe and reliable data persistence. After building STARK, users can add data via either the <em>STARK CLI</em> or directly through <em>C++ code</em>.
     </p>
   </div>
   <blockquote>
-    <p>As mentioned above, you can use URAGE via the CLI or embed it in your C++ project.</p>
+    <p>As mentioned above, you can use STARK via the CLI or embed it in your C++ project.</p>
   </blockquote>
 </section>
 
@@ -811,16 +811,16 @@
   </div>
 
   <div id="tab-win" class="tab-content active">
-    <pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code><span class="comment"># 1. Download URAGE</span>
-<span class="comment"># Go to https://github.com/abdullahtnz/urage and download the ZIP file</span>
+    <pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code><span class="comment"># 1. Download STARK</span>
+<span class="comment"># Go to https://github.com/abdullahtnz/stark and download the ZIP file</span>
 <span class="comment"># Extract it to your project folder C:\my_project</span>
-<span class="comment"># You must get a path like: C:\my_project\urage</span>
+<span class="comment"># You must get a path like: C:\my_project\stark</span>
 
 <span class="comment"># 2. Open Command Prompt as Administrator</span>
 <span class="comment"># Press Windows Key, type "cmd", right-click, "Run as Administrator"</span>
 
-<span class="comment"># 3. Go to URAGE folder</span>
-<span class="cmd">cd C:\my_project\urage</span>
+<span class="comment"># 3. Go to STARK folder</span>
+<span class="cmd">cd C:\my_project\stark</span>
 <span class="cmd">mkdir build</span>
 <span class="cmd">cd build</span>
 
@@ -829,10 +829,10 @@
 <span class="cmd">mingw32-make</span>
 
 <span class="comment"># 5. Install (copy to MinGW)</span>
-<span class="cmd">copy liburage.dll C:\mingw64\bin\</span>
-<span class="cmd">copy liburage.dll.a C:\mingw64\lib\</span>
-<span class="cmd">copy ..\bindings\cpp\urage.hpp C:\mingw64\include\</span>
-<span class="cmd">copy ..\core\include\urage.h C:\mingw64\include\</span>
+<span class="cmd">copy libstark.dll C:\mingw64\bin\</span>
+<span class="cmd">copy libstark.dll.a C:\mingw64\lib\</span>
+<span class="cmd">copy ..\bindings\cpp\stark.hpp C:\mingw64\include\</span>
+<span class="cmd">copy ..\core\include\stark.h C:\mingw64\include\</span>
 
 <span class="comment"># ✅ DONE! One-time setup complete.</span></code></pre>
   </div>
@@ -842,8 +842,8 @@
 <span class="cmd">cd Desktop/my_project</span>
 
 <span class="comment"># 2. Download and build</span>
-<span class="cmd">git clone https://github.com/abdullahtnz/urage.git</span>
-<span class="cmd">cd urage</span>
+<span class="cmd">git clone https://github.com/abdullahtnz/stark.git</span>
+<span class="cmd">cd stark</span>
 <span class="cmd">mkdir build</span>
 <span class="cmd">cd build</span>
 <span class="cmd">cmake .. -DBUILD_SHARED=ON</span>
@@ -862,17 +862,17 @@
 <!-- CLI USAGE -->
 <section>
   <div class="section-tag">CLI</div>
-  <h2>Using URAGE in CLI</h2>
+  <h2>Using STARK in CLI</h2>
 
   <div class="note">Works identically on Windows and Linux.</div>
 
-  <pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code><span class="comment"># Go to urage/build folder</span>
+  <pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code><span class="comment"># Go to stark/build folder</span>
 <span class="cmd">cd C:\my_project\build</span>
-<span class="cmd">./urage_cli filename</span>   <span class="comment"># Creates or opens a file in the build folder</span>
+<span class="cmd">./stark_cli filename</span>   <span class="comment"># Creates or opens a file in the build folder</span>
 
 <span class="comment"># To open/create a file in another directory:</span>
 <span class="cmd">cd C:\my_project\my_folder</span>
-<span class="cmd">urage_cli filename</span></code></pre>
+<span class="cmd">stark_cli filename</span></code></pre>
 
   <div class="cmd-section">
 
@@ -933,10 +933,10 @@
   <div class="note">When defining string fields in a type, you must specify the string size. Use <code>string(255)</code> if memory usage isn't a concern.</div>
 
   <pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code><span class="comment"># 1. Open your database</span>
-<span class="cmd">urage_cli mygame</span>
+<span class="cmd">stark_cli mygame</span>
 
 <span class="comment"># 2. Define a player type</span>
-<span class="kw">urage&gt; define</span> player {
+<span class="kw">stark&gt; define</span> player {
     name  <span class="str">string(32)</span>
     hp    <span class="str">int</span>
     level <span class="str">int</span>
@@ -945,39 +945,39 @@
 }
 
 <span class="comment"># 3. Add players (key = 1 and key = 2)</span>
-<span class="kw">urage&gt; add</span> player <span class="num">1</span> name=<span class="str">"Hero"</span> hp=<span class="num">100</span> level=<span class="num">5</span> gold=<span class="num">250</span> class=<span class="str">"warrior"</span>
-<span class="kw">urage&gt; add</span> player <span class="num">2</span> name=<span class="str">"Mage"</span> hp=<span class="num">80</span>  level=<span class="num">7</span> gold=<span class="num">450</span> class=<span class="str">"wizard"</span>
+<span class="kw">stark&gt; add</span> player <span class="num">1</span> name=<span class="str">"Hero"</span> hp=<span class="num">100</span> level=<span class="num">5</span> gold=<span class="num">250</span> class=<span class="str">"warrior"</span>
+<span class="kw">stark&gt; add</span> player <span class="num">2</span> name=<span class="str">"Mage"</span> hp=<span class="num">80</span>  level=<span class="num">7</span> gold=<span class="num">450</span> class=<span class="str">"wizard"</span>
 
 <span class="comment"># 4. Get player data</span>
-<span class="kw">urage&gt; get</span> player <span class="num">1</span>
+<span class="kw">stark&gt; get</span> player <span class="num">1</span>
 <span class="comment"># Output: name="Hero" hp=100 level=5 gold=250 class="warrior"</span>
 
 <span class="comment"># 5. Check for non-existent key</span>
-<span class="kw">urage&gt; get</span> player <span class="num">3</span>
+<span class="kw">stark&gt; get</span> player <span class="num">3</span>
 <span class="comment"># Output: player:3 not found</span>
 
 <span class="comment"># 6. View type definition</span>
-<span class="kw">urage&gt; desc</span> player
+<span class="kw">stark&gt; desc</span> player
 
 <span class="comment"># 7. Update player (overwrites existing record)</span>
-<span class="kw">urage&gt; add</span> player <span class="num">1</span> name=<span class="str">"Hero"</span> hp=<span class="num">85</span> level=<span class="num">6</span> gold=<span class="num">300</span> class=<span class="str">"warrior"</span>
+<span class="kw">stark&gt; add</span> player <span class="num">1</span> name=<span class="str">"Hero"</span> hp=<span class="num">85</span> level=<span class="num">6</span> gold=<span class="num">300</span> class=<span class="str">"warrior"</span>
 
 <span class="comment"># 8. Check database stats</span>
-<span class="kw">urage&gt; stats</span>
+<span class="kw">stark&gt; stats</span>
 
 <span class="comment"># 9. Exit and save</span>
-<span class="kw">urage&gt; exit</span></code></pre>
+<span class="kw">stark&gt; exit</span></code></pre>
 
   <h3 style="margin-top:3rem">Transactions Example</h3>
   <p>Transactions work like a surgeon — begin, do the job, commit. Best used when updating values that must succeed atomically.</p>
 
-  <pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code><span class="kw">urage&gt; define</span> player { id <span class="str">int</span> hp <span class="str">int</span> level <span class="str">int</span> }
-<span class="kw">urage&gt; add</span> player <span class="num">1</span> id=<span class="num">123</span> hp=<span class="num">100</span> level=<span class="num">0</span>
+  <pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code><span class="kw">stark&gt; define</span> player { id <span class="str">int</span> hp <span class="str">int</span> level <span class="str">int</span> }
+<span class="kw">stark&gt; add</span> player <span class="num">1</span> id=<span class="num">123</span> hp=<span class="num">100</span> level=<span class="num">0</span>
 
 <span class="comment"># Player won a fight — update atomically</span>
-<span class="kw">urage&gt; begin</span>
-<span class="kw">urage&gt; add</span> player <span class="num">1</span> id=<span class="num">123</span> hp=<span class="num">45</span> level=<span class="num">1</span>
-<span class="kw">urage&gt; commit</span></code></pre>
+<span class="kw">stark&gt; begin</span>
+<span class="kw">stark&gt; add</span> player <span class="num">1</span> id=<span class="num">123</span> hp=<span class="num">45</span> level=<span class="num">1</span>
+<span class="kw">stark&gt; commit</span></code></pre>
 </section>
 
 <hr class="divider">
@@ -985,15 +985,15 @@
 <!-- C++ API -->
 <section>
   <div class="section-tag">C++ Integration</div>
-  <h2>Using URAGE in C++</h2>
-  <p>Just add <code>#include &lt;urage.hpp&gt;</code> to your project. The installation step already handles everything else.</p>
+  <h2>Using STARK in C++</h2>
+  <p>Just add <code>#include &lt;stark.hpp&gt;</code> to your project. The installation step already handles everything else.</p>
 
   <pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code><span class="comment">// main.cpp</span>
-<span class="kw">#include</span> <span class="str">&lt;urage.hpp&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;stark.hpp&gt;</span>
 
 <span class="kw">int</span> main() {
     <span class="comment">// Open database (creates "save.idx" and "save.dat")</span>
-    urage::Database db(<span class="str">"save"</span>);
+    stark::Database db(<span class="str">"save"</span>);
 
     <span class="comment">// Save player</span>
     db.add(<span class="num">1</span>, <span class="str">"Hero"</span>);
@@ -1043,7 +1043,7 @@ db.rollback();
     </div>
      <div class="api-card">
       <h4>Summary</h4>
-      <p>These are summary of how to use URAGE in C++. More languages and explanation will be added in further updates.</p>
+      <p>These are summary of how to use STARK in C++. More languages and explanation will be added in further updates.</p>
     </div>
 
   </div>
@@ -1054,13 +1054,13 @@ db.rollback();
 <!-- COMPARISON -->
 <section>
   <div class="section-tag">Benchmarks</div>
-  <h2>How URAGE Compares</h2>
+  <h2>How STARK Compares</h2>
 
   <h3>Core Features</h3>
   <div class="table-section">
     <table>
       <thead>
-        <tr><th>Feature</th><th>URAGE</th><th>SQLite</th><th>Redis</th><th>MongoDB</th><th>LevelDB</th></tr>
+        <tr><th>Feature</th><th>STARK</th><th>SQLite</th><th>Redis</th><th>MongoDB</th><th>LevelDB</th></tr>
       </thead>
       <tbody>
         <tr><td>Type</td><td class="check">Key-Value</td><td>Relational</td><td>Key-Value</td><td>Document</td><td>Key-Value</td></tr>
@@ -1082,14 +1082,14 @@ db.rollback();
   <div class="table-section">
     <table>
       <thead>
-        <tr><th>Feature</th><th>URAGE</th><th>SQLite</th><th>Redis</th><th>MongoDB</th></tr>
+        <tr><th>Feature</th><th>STARK</th><th>SQLite</th><th>Redis</th><th>MongoDB</th></tr>
       </thead>
       <tbody>
         <tr><td>Save Player Data</td><td class="check">✅ 1 line</td><td>5 lines SQL</td><td>2 lines</td><td>3 lines JSON</td></tr>
         <tr><td>Load in 1 sec</td><td class="check">✅ 0.5 µs</td><td>3 µs</td><td>1 µs</td><td>50 µs</td></tr>
         <tr><td>Offline Use</td><td class="check">✅ Yes</td><td class="check">✅ Yes</td><td class="cross">❌ No</td><td class="cross">❌ No</td></tr>
         <tr><td>Simple Syntax</td><td class="check">✅ add(1, "Hero")</td><td>INSERT INTO …</td><td>SET key val</td><td>db.insert()</td></tr>
-        <tr><td>Focus</td><td class="check">✅ Offline apps</td><td>General purpose</td><td>Cache</td><td>Web apps</td></tr>
+        <tr><td>Focus</td><td class="">Offline apps</td><td>General purpose</td><td>Cache</td><td>Web apps</td></tr>
       </tbody>
     </table>
   </div>
@@ -1099,7 +1099,7 @@ db.rollback();
     <table>
       <thead><tr><th>Database</th><th>File Size</th></tr></thead>
       <tbody>
-        <tr><td>URAGE</td><td class="check">~100 KB</td></tr>
+        <tr><td>STARK</td><td class="check">~100 KB</td></tr>
         <tr><td>SQLite</td><td>~150 KB</td></tr>
         <tr><td>LevelDB</td><td>~120 KB</td></tr>
         <tr><td>MongoDB</td><td>~2 MB</td></tr>
@@ -1110,7 +1110,7 @@ db.rollback();
   <h3 style="margin-top:3rem">Speed Benchmark</h3>
   <div class="table-section">
     <table>
-      <thead><tr><th>Operation</th><th>URAGE</th><th>SQLite</th><th>Redis</th><th>MongoDB</th></tr></thead>
+      <thead><tr><th>Operation</th><th>STARK</th><th>SQLite</th><th>Redis</th><th>MongoDB</th></tr></thead>
       <tbody>
         <tr><td>Write 1 record</td><td class="check">0.8 µs</td><td>5 µs</td><td>1 µs</td><td>50 µs</td></tr>
         <tr><td>Read 1 record</td><td class="check">0.5 µs</td><td>3 µs</td><td>0.8 µs</td><td>30 µs</td></tr>
@@ -1121,7 +1121,7 @@ db.rollback();
   </div>
 
   <blockquote style="margin-top:2rem">
-    <p>As estimated values show, URAGE is faster and leaner than comparable local databases. What makes URAGE stand out is its strict focus on core functions — it's designed for specific use cases, and that's what makes it excel at them.</p>
+    <p>As estimated values show, STARK is faster and leaner than comparable local databases. What makes STARK stand out is its strict focus on core functions — it's designed for specific use cases, and that's what makes it excel at them.</p>
   </blockquote>
 </section>
 
@@ -1130,11 +1130,11 @@ db.rollback();
 <!-- WHY / WHY NOT -->
 <section>
   <div class="section-tag">Decision Guide</div>
-  <h2>Should You Use URAGE?</h2>
+  <h2>Should You Use STARK?</h2>
 
   <div class="cards-grid">
     <div class="card pro">
-      <div class="card-title">👍 Choose URAGE when…</div>
+      <div class="card-title">👍 Choose STARK when…</div>
       <div class="card-row">
         <div class="card-icon">⚡</div>
         <div class="card-text">
@@ -1173,7 +1173,7 @@ db.rollback();
     </div>
 
     <div class="card con">
-      <div class="card-title">👎 Skip URAGE when…</div>
+      <div class="card-title">👎 Skip STARK when…</div>
       <div class="card-row">
         <div class="card-icon">🗃️</div>
         <div class="card-text">
@@ -1227,7 +1227,7 @@ db.rollback();
 </div>
 
 <footer>
-  <p>URAGE · Open Source · MIT License · github.com/abdullahtnz/urage</p>
+  <p>STARK · Open Source · MIT License · github.com/abdullahtnz/stark</p>
 </footer>
 
 <script>

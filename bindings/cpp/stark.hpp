@@ -1,5 +1,5 @@
-#ifndef URAGE_CPP_HPP
-#define URAGE_CPP_HPP
+#ifndef STARK_CPP_HPP
+#define STARK_CPP_HPP
 
 #include <string>
 #include <vector>
@@ -8,10 +8,10 @@
 #include <iostream>
 
 extern "C" {
-    #include <urage.h>
+    #include <stark.h>
 }
 
-namespace urage {
+namespace stark {
 
 // ==================== Exception Classes ====================
 class Error : public std::runtime_error {
@@ -34,7 +34,7 @@ struct Stats {
     
     Stats() : keys(0), height(0), data_size(0), pages(0) {}
     
-    explicit Stats(const urage_stats_t& s) 
+    explicit Stats(const stark_stats_t& s) 
         : keys(s.keys_count), height(s.btree_height), 
           data_size(s.data_size), pages(s.page_count) {}
 };
@@ -62,7 +62,7 @@ struct Field {
 // ==================== Main Database Class ====================
 class Database {
 private:
-    urage_db_t* db;
+    stark_db_t* db;
     std::string last_error_msg;
 
     void check_db() const {
@@ -73,7 +73,7 @@ public:
     // ========== Constructor / Destructor ==========
     
     explicit Database(const std::string& path) {
-        db = urage_open(path.c_str(), 0);
+        db = stark_open(path.c_str(), 0);
         if (!db) {
             throw Error("Failed to open database: " + path);
         }
@@ -84,7 +84,7 @@ public:
             try {
                 sync();
             } catch (...) {}
-            urage_close(db);
+            stark_close(db);
             db = nullptr;
         }
     }
@@ -98,7 +98,7 @@ public:
     
     Database& operator=(Database&& other) noexcept {
         if (this != &other) {
-            if (db) urage_close(db);
+            if (db) stark_close(db);
             db = other.db;
             other.db = nullptr;
         }
@@ -106,12 +106,12 @@ public:
     }
     
     // ========== Numeric Key Operations ==========
-    // Uses: urage_add, urage_get, urage_delete, urage_exists
+    // Uses: stark_add, stark_get, stark_delete, stark_exists
     
     void add(uint32_t key, const std::string& value) {
         check_db();
-        urage_result_t r = urage_add(db, key, value.c_str(), value.size() + 1);
-        if (r != URAGE_OK) {
+        stark_result_t r = stark_add(db, key, value.c_str(), value.size() + 1);
+        if (r != STARK_OK) {
             throw Error("Failed to add key " + std::to_string(key));
         }
     }
@@ -120,11 +120,11 @@ public:
         check_db();
         char buffer[4096];
         size_t size = sizeof(buffer);
-        urage_result_t r = urage_get(db, key, buffer, &size);
+        stark_result_t r = stark_get(db, key, buffer, &size);
         
-        if (r == URAGE_OK) {
+        if (r == STARK_OK) {
             return std::string(buffer, size);
-        } else if (r == URAGE_NOT_FOUND) {
+        } else if (r == STARK_NOT_FOUND) {
             return "";
         } else {
             throw Error("Failed to get key " + std::to_string(key));
@@ -138,24 +138,24 @@ public:
     
     bool remove(uint32_t key) {
         check_db();
-        urage_result_t r = urage_delete(db, key);
-        if (r == URAGE_OK) return true;
-        if (r == URAGE_NOT_FOUND) return false;
+        stark_result_t r = stark_delete(db, key);
+        if (r == STARK_OK) return true;
+        if (r == STARK_NOT_FOUND) return false;
         throw Error("Failed to remove key " + std::to_string(key));
     }
     
     bool exists(uint32_t key) {
         check_db();
-        return urage_exists(db, key) != 0;
+        return stark_exists(db, key) != 0;
     }
     
     // ========== String Key Operations ==========
-    // Uses: urage_put_str, urage_get_str, urage_del_str, urage_exists_str
+    // Uses: stark_put_str, stark_get_str, stark_del_str, stark_exists_str
     
     void put_str(const std::string& key, const std::string& value) {
         check_db();
-        urage_result_t r = urage_put_str(db, key.c_str(), value.c_str(), value.size() + 1);
-        if (r != URAGE_OK) {
+        stark_result_t r = stark_put_str(db, key.c_str(), value.c_str(), value.size() + 1);
+        if (r != STARK_OK) {
             throw Error("Failed to put string key: " + key);
         }
     }
@@ -164,11 +164,11 @@ public:
         check_db();
         char buffer[4096];
         size_t size = sizeof(buffer);
-        urage_result_t r = urage_get_str(db, key.c_str(), buffer, &size);
+        stark_result_t r = stark_get_str(db, key.c_str(), buffer, &size);
         
-        if (r == URAGE_OK) {
+        if (r == STARK_OK) {
             return std::string(buffer, size);
-        } else if (r == URAGE_NOT_FOUND) {
+        } else if (r == STARK_NOT_FOUND) {
             return "";
         } else {
             throw Error("Failed to get string key: " + key);
@@ -177,20 +177,20 @@ public:
     
     bool remove_str(const std::string& key) {
         check_db();
-        urage_result_t r = urage_del_str(db, key.c_str());
-        if (r == URAGE_OK) return true;
-        if (r == URAGE_NOT_FOUND) return false;
+        stark_result_t r = stark_del_str(db, key.c_str());
+        if (r == STARK_OK) return true;
+        if (r == STARK_NOT_FOUND) return false;
         throw Error("Failed to delete string key: " + key);
     }
     
     bool exists_str(const std::string& key) {
         check_db();
-        return urage_exists_str(db, key.c_str()) != 0;
+        return stark_exists_str(db, key.c_str()) != 0;
     }
     
     // ========== Type System ==========
-    // Uses: urage_define_type, urage_undefine_type, urage_get_type,
-    //       urage_add_typed, urage_get_typed
+    // Uses: stark_define_type, stark_undefine_type, stark_get_type,
+    //       stark_add_typed, stark_get_typed
     
     void define_type(const std::string& name, const std::vector<Field>& fields) {
         check_db();
@@ -200,10 +200,10 @@ public:
             c_fields.push_back(f.to_c());
         }
         
-        urage_result_t r = urage_define_type(db, name.c_str(), 
+        stark_result_t r = stark_define_type(db, name.c_str(), 
                                              c_fields.data(), c_fields.size());
-        if (r != URAGE_OK) {
-            if (r == URAGE_ERROR) {
+        if (r != STARK_OK) {
+            if (r == STARK_ERROR) {
                 throw Error("Type already exists: " + name);
             } else {
                 throw Error("Failed to define type: " + name);
@@ -213,10 +213,10 @@ public:
     
     void add_typed(const std::string& type, uint32_t key, const std::string& fields) {
         check_db();
-        urage_result_t r = urage_add_typed(db, type.c_str(), key, fields.c_str());
-        if (r == URAGE_NOT_FOUND) {
+        stark_result_t r = stark_add_typed(db, type.c_str(), key, fields.c_str());
+        if (r == STARK_NOT_FOUND) {
             throw NotFound("Type not found: " + type);
-        } else if (r != URAGE_OK) {
+        } else if (r != STARK_OK) {
             throw Error("Failed to add typed data");
         }
     }
@@ -224,11 +224,11 @@ public:
     std::string get_typed(const std::string& type, uint32_t key) {
         check_db();
         char buffer[8192];
-        urage_result_t r = urage_get_typed(db, type.c_str(), key, buffer, sizeof(buffer));
+        stark_result_t r = stark_get_typed(db, type.c_str(), key, buffer, sizeof(buffer));
         
-        if (r == URAGE_OK) {
+        if (r == STARK_OK) {
             return std::string(buffer);
-        } else if (r == URAGE_NOT_FOUND) {
+        } else if (r == STARK_NOT_FOUND) {
             return "";
         } else {
             throw Error("Failed to get typed data");
@@ -237,7 +237,7 @@ public:
     
     std::vector<Field> describe_type(const std::string& name) {
         check_db();
-        TypeDef* type = urage_get_type(db, name.c_str());
+        TypeDef* type = stark_get_type(db, name.c_str());
         if (!type) {
             throw NotFound("Type not found: " + name);
         }
@@ -257,60 +257,60 @@ public:
     
     bool undefine_type(const std::string& name) {
         check_db();
-        urage_result_t r = urage_undefine_type(db, name.c_str());
-        if (r == URAGE_OK) return true;
-        if (r == URAGE_NOT_FOUND) return false;
+        stark_result_t r = stark_undefine_type(db, name.c_str());
+        if (r == STARK_OK) return true;
+        if (r == STARK_NOT_FOUND) return false;
         throw Error("Failed to undefine type: " + name);
     }
     
     // ========== Transactions ==========
-    // Uses: urage_begin, urage_commit, urage_rollback, urage_in_transaction
+    // Uses: stark_begin, stark_commit, stark_rollback, stark_in_transaction
     
     void begin() {
         check_db();
-        urage_result_t r = urage_begin(db);
-        if (r != URAGE_OK) {
+        stark_result_t r = stark_begin(db);
+        if (r != STARK_OK) {
             throw Error("Failed to begin transaction");
         }
     }
     
     void commit() {
         check_db();
-        urage_result_t r = urage_commit(db);
-        if (r != URAGE_OK) {
+        stark_result_t r = stark_commit(db);
+        if (r != STARK_OK) {
             throw Error("Failed to commit transaction");
         }
     }
     
     void rollback() {
         check_db();
-        urage_result_t r = urage_rollback(db);
-        if (r != URAGE_OK) {
+        stark_result_t r = stark_rollback(db);
+        if (r != STARK_OK) {
             throw Error("Failed to rollback transaction");
         }
     }
     
     bool in_transaction() {
         check_db();
-        return urage_in_transaction(db) != 0;
+        return stark_in_transaction(db) != 0;
     }
     
     // ========== Utilities ==========
-    // Uses: urage_sync, urage_stats, urage_error
+    // Uses: stark_sync, stark_stats, stark_error
     
     void sync() {
         check_db();
-        urage_result_t r = urage_sync(db);
-        if (r != URAGE_OK) {
+        stark_result_t r = stark_sync(db);
+        if (r != STARK_OK) {
             throw Error("Failed to sync database");
         }
     }
     
     Stats stats() {
         check_db();
-        urage_stats_t c_stats;
-        urage_result_t r = urage_stats(db, &c_stats);
-        if (r != URAGE_OK) {
+        stark_stats_t c_stats;
+        stark_result_t r = stark_stats(db, &c_stats);
+        if (r != STARK_OK) {
             throw Error("Failed to get stats");
         }
         return Stats(c_stats);
@@ -318,11 +318,11 @@ public:
     
     std::string get_last_error() {
         if (!db) return "Database not open";
-        const char* err = urage_error(db);
+        const char* err = stark_error(db);
         return err ? std::string(err) : "";
     }
 };
 
-} // namespace urage
+} // namespace stark
 
-#endif // URAGE_CPP_HPP
+#endif // STARK_CPP_HPP

@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/stark_cli.dir/cli/src/main.c.o -o stark_cli  -Wl,-rpath,/home/abdullahtnz/Desktop/starkdb/build: libstark.so 

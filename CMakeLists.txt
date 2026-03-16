@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(URAGE VERSION 1.0.0)
+project(STARK VERSION 1.0.0)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -17,38 +17,38 @@ set(CORE_SOURCES
 )
 
 # Create shared library
-add_library(urage SHARED ${CORE_SOURCES})
+add_library(stark SHARED ${CORE_SOURCES})
 
 # Include directories for the library
-target_include_directories(urage 
+target_include_directories(stark 
     PUBLIC 
-        ${CMAKE_CURRENT_SOURCE_DIR}/core/include   # For urage.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/core/include   # For stark.h
     PRIVATE 
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src       # For internal headers
 )
 
 # For Windows DLL
 if(WIN32)
-    target_compile_definitions(urage PRIVATE URAGE_BUILD_SHARED)
+    target_compile_definitions(stark PRIVATE STARK_BUILD_SHARED)
 endif()
 
 # ==================== CLI ====================
 
 # Create CLI executable
-add_executable(urage_cli cli/src/main.c)
+add_executable(stark_cli cli/src/main.c)
 
 # Link to the core library
-target_link_libraries(urage_cli PRIVATE urage)
+target_link_libraries(stark_cli PRIVATE stark)
 
 # Include the public API header for CLI
-target_include_directories(urage_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
+target_include_directories(stark_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
 
 
 
 # ==================== C++ Bindings ====================
 
 # Install C++ header
-install(FILES ${CMAKE_SOURCE_DIR}/bindings/cpp/urage.hpp 
+install(FILES ${CMAKE_SOURCE_DIR}/bindings/cpp/stark.hpp 
         DESTINATION include)
 
 # Optionally build examples
@@ -59,5 +59,5 @@ endif()
 
 # ==================== INSTALL ====================
 
-install(TARGETS urage urage_cli)
-install(FILES core/include/urage.h DESTINATION include)
+install(TARGETS stark stark_cli)
+install(FILES core/include/stark.h DESTINATION include)

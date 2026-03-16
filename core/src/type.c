@@ -1,5 +1,5 @@
 #include "type.h"
-#include "urage.h"
+#include "stark.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -60,10 +60,10 @@ static int parse_field_definition(const char* input, FieldDef* field) {
 
 // ==================== TYPE CREATION ====================
 
-urage_result_t type_create(urage_db_t* db, const char* name, 
+stark_result_t type_create(stark_db_t* db, const char* name, 
                            FieldDef* fields, uint32_t field_count) {
     if (!db || !name || !fields || field_count == 0) 
-        return URAGE_INVALID_ARG;
+        return STARK_INVALID_ARG;
     
     // Check if type already exists
     char type_key[256];
@@ -71,8 +71,8 @@ urage_result_t type_create(urage_db_t* db, const char* name,
     
     char dummy[1];
     size_t size = 0;
-    if (urage_get_str(db, type_key, dummy, &size) == URAGE_OK || size > 0) {
-        return URAGE_ERROR;  // Type already exists
+    if (stark_get_str(db, type_key, dummy, &size) == STARK_OK || size > 0) {
+        return STARK_ERROR;  // Type already exists
     }
     
     // Calculate total size (offsets already set by type_parse_fields)
@@ -84,7 +84,7 @@ urage_result_t type_create(urage_db_t* db, const char* name,
     // Allocate memory for type definition
     size_t type_size = sizeof(TypeDef) + (field_count * sizeof(FieldDef));
     TypeDef* type = (TypeDef*)malloc(type_size);
-    if (!type) return URAGE_MEMORY_ERROR;
+    if (!type) return STARK_MEMORY_ERROR;
     
     // Fill type definition
     static uint32_t next_type_id = 1;  // In real DB, this would be persistent
@@ -96,7 +96,7 @@ urage_result_t type_create(urage_db_t* db, const char* name,
     memcpy(type->fields, fields, field_count * sizeof(FieldDef));
     
     // Store in database
-    urage_result_t result = urage_put_str(db, type_key, type, type_size);
+    stark_result_t result = stark_put_str(db, type_key, type, type_size);
     
     free(type);
     return result;
@@ -104,7 +104,7 @@ urage_result_t type_create(urage_db_t* db, const char* name,
 
 // ==================== TYPE RETRIEVAL ====================
 
-TypeDef* type_get(urage_db_t* db, const char* name) {
+TypeDef* type_get(stark_db_t* db, const char* name) {
     if (!db || !name) return NULL;
     
     char type_key[256];
@@ -112,9 +112,9 @@ TypeDef* type_get(urage_db_t* db, const char* name) {
     
     // First, get the size needed
     size_t size = 0;
-    urage_result_t result = urage_get_str(db, type_key, NULL, &size);
+    stark_result_t result = stark_get_str(db, type_key, NULL, &size);
     
-    // urage_get_str returns URAGE_ERROR but sets size when data exists
+    // stark_get_str returns STARK_ERROR but sets size when data exists
     if (size == 0) {
         printf("❌ Type key '%s' not found\n", type_key);
         return NULL;
@@ -127,8 +127,8 @@ TypeDef* type_get(urage_db_t* db, const char* name) {
     if (!type) return NULL;
     
     // Get the actual data
-    result = urage_get_str(db, type_key, type, &size);
-    if (result != URAGE_OK) {
+    result = stark_get_str(db, type_key, type, &size);
+    if (result != STARK_OK) {
         printf("❌ Failed to get type data: %d\n", result);
         free(type);  // ← Make sure to free on error!
         return NULL;
@@ -139,14 +139,14 @@ TypeDef* type_get(urage_db_t* db, const char* name) {
 
 // ==================== TYPE DELETION ====================
 
-urage_result_t type_delete(urage_db_t* db, const char* name) {
-    if (!db || !name) return URAGE_INVALID_ARG;
+stark_result_t type_delete(stark_db_t* db, const char* name) {
+    if (!db || !name) return STARK_INVALID_ARG;
     
     char type_key[256];
     snprintf(type_key, sizeof(type_key), "%s%s", TYPE_KEY_PREFIX, name);
     
     // Delete the type definition
-    return urage_del_str(db, type_key);
+    return stark_del_str(db, type_key);
     
     // Note: In a real DB, you'd also delete all data of this type
     // This would require iterating over all keys with this prefix
@@ -154,8 +154,8 @@ urage_result_t type_delete(urage_db_t* db, const char* name) {
 
 // ==================== TYPE LISTING ====================
 
-urage_result_t type_list(urage_db_t* db, char*** names, uint32_t* count) {
-    if (!db || !names || !count) return URAGE_INVALID_ARG;
+stark_result_t type_list(stark_db_t* db, char*** names, uint32_t* count) {
+    if (!db || !names || !count) return STARK_INVALID_ARG;
     
     // For now, we need a way to iterate over all keys
     // This is a simplified approach - in a real DB you'd have a cursor
@@ -172,18 +172,18 @@ urage_result_t type_list(urage_db_t* db, char*** names, uint32_t* count) {
     printf("ℹ️  Type listing requires cursor iteration (to be implemented)\n");
     printf("   For now, use 'desc <typename>' to check specific types\n");
     
-    return URAGE_OK;
+    return STARK_OK;
 }
 
 // ==================== FIELD PARSING ====================
 
-urage_result_t type_parse_fields(const char* input, FieldDef** fields, 
+stark_result_t type_parse_fields(const char* input, FieldDef** fields, 
                                   uint32_t* field_count) {
-    if (!input || !fields || !field_count) return URAGE_INVALID_ARG;
+    if (!input || !fields || !field_count) return STARK_INVALID_ARG;
     
     // Make a copy of the input
     char* input_copy = strdup(input);
-    if (!input_copy) return URAGE_MEMORY_ERROR;
+    if (!input_copy) return STARK_MEMORY_ERROR;
     
     // First, count the fields (pairs of name type)
     uint32_t count = 0;
@@ -199,18 +199,18 @@ urage_result_t type_parse_fields(const char* input, FieldDef** fields,
     
     // Must have even number of tokens (name, type pairs)
     if (count == 0 || count % 2 != 0) {
-        return URAGE_INVALID_ARG;
+        return STARK_INVALID_ARG;
     }
     
     *field_count = count / 2;
     *fields = (FieldDef*)calloc(*field_count, sizeof(FieldDef));
-    if (!*fields) return URAGE_MEMORY_ERROR;
+    if (!*fields) return STARK_MEMORY_ERROR;
     
     // Now parse each field
     input_copy = strdup(input);
     if (!input_copy) {
         free(*fields);
-        return URAGE_MEMORY_ERROR;
+        return STARK_MEMORY_ERROR;
     }
     
     uint32_t field_idx = 0;
@@ -226,7 +226,7 @@ urage_result_t type_parse_fields(const char* input, FieldDef** fields,
         if (!type_token) {
             free(input_copy);
             free(*fields);
-            return URAGE_INVALID_ARG;
+            return STARK_INVALID_ARG;
         }
         
         // Parse type (may include size like string(64))
@@ -254,7 +254,7 @@ urage_result_t type_parse_fields(const char* input, FieldDef** fields,
             // Unknown type
             free(input_copy);
             free(*fields);
-            return URAGE_INVALID_ARG;
+            return STARK_INVALID_ARG;
         }
         
         field_idx++;
@@ -270,7 +270,7 @@ urage_result_t type_parse_fields(const char* input, FieldDef** fields,
         offset += (*fields)[i].size;
     }
     
-    return URAGE_OK;
+    return STARK_OK;
 }
 
 // ==================== DATA SERIALIZATION ====================
@@ -298,12 +298,12 @@ static int parse_value(const char* value_str, uint8_t type, void* output) {
     return 0;
 }
 
-urage_result_t type_serialize(FieldDef* fields, uint32_t field_count,
+stark_result_t type_serialize(FieldDef* fields, uint32_t field_count,
                               const char* field_values, void* buffer) {
-    if (!fields || !buffer || !field_values) return URAGE_INVALID_ARG;
+    if (!fields || !buffer || !field_values) return STARK_INVALID_ARG;
     
     char* values_copy = strdup(field_values);
-    if (!values_copy) return URAGE_ERROR;
+    if (!values_copy) return STARK_ERROR;
     
     char* token = strtok(values_copy, " \t");
     while (token) {
@@ -333,12 +333,12 @@ urage_result_t type_serialize(FieldDef* fields, uint32_t field_count,
     }
     
     free(values_copy);
-    return URAGE_OK;
+    return STARK_OK;
 }
 
-urage_result_t type_deserialize(FieldDef* fields, uint32_t field_count,
+stark_result_t type_deserialize(FieldDef* fields, uint32_t field_count,
                                 const void* buffer, char* output, size_t output_size) {
-    if (!fields || !buffer || !output) return URAGE_INVALID_ARG;
+    if (!fields || !buffer || !output) return STARK_INVALID_ARG;
     
     output[0] = '\0';
     size_t pos = 0;
@@ -363,19 +363,19 @@ urage_result_t type_deserialize(FieldDef* fields, uint32_t field_count,
         }
     }
     
-    return URAGE_OK;
+    return STARK_OK;
 }
 
 // This would require implementing cursor functionality in your B-tree
 // For now, here's a placeholder:
 
 typedef struct {
-    urage_db_t* db;
+    stark_db_t* db;
     void* internal_cursor;
     int valid;
 } TypeIterator;
 
-TypeIterator* type_iterator_create(urage_db_t* db) {
+TypeIterator* type_iterator_create(stark_db_t* db) {
     if (!db) return NULL;
     
     TypeIterator* it = malloc(sizeof(TypeIterator));

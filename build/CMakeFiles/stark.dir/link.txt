@@ -1,0 +1,1 @@
+/usr/bin/cc -fPIC -shared -Wl,-soname,libstark.so -o libstark.so CMakeFiles/stark.dir/core/src/database_api.c.o CMakeFiles/stark.dir/core/src/database.c.o CMakeFiles/stark.dir/core/src/btree.c.o CMakeFiles/stark.dir/core/src/storage.c.o CMakeFiles/stark.dir/core/src/pager.c.o CMakeFiles/stark.dir/core/src/type.c.o 

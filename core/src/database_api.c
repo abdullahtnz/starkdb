@@ -1,11 +1,11 @@
-#include "urage.h"
+#include "stark.h"
 #include "database.h"
 #include "type.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-struct urage_db {
+struct stark_db {
     Database* internal_db;
     char last_error[256];
     char* path;
@@ -18,10 +18,10 @@ struct urage_db {
 
 // ==================== LIFECYCLE ====================
 
-URAGE_API urage_db_t* urage_open(const char* path, unsigned flags) {
+STARK_API stark_db_t* stark_open(const char* path, unsigned flags) {
     (void)flags;  // Unused for now
     
-    urage_db_t* db = (urage_db_t*)calloc(1, sizeof(urage_db_t));
+    stark_db_t* db = (stark_db_t*)calloc(1, sizeof(stark_db_t));
     if (!db) return NULL;
     
     db->path = strdup(path);
@@ -39,12 +39,12 @@ URAGE_API urage_db_t* urage_open(const char* path, unsigned flags) {
     return db;
 }
 
-URAGE_API void urage_close(urage_db_t* db) {
+STARK_API void stark_close(stark_db_t* db) {
     if (!db) return;
     
     if (db->internal_db) {
         // Force sync to disk before closing
-        urage_sync(db); 
+        stark_sync(db); 
         db_close(db->internal_db);
     }
     
@@ -55,9 +55,9 @@ URAGE_API void urage_close(urage_db_t* db) {
 
 // ==================== CRUD ====================
 
-URAGE_API urage_result_t urage_add(urage_db_t* db, uint32_t key,
+STARK_API stark_result_t stark_add(stark_db_t* db, uint32_t key,
                                    const void* value, size_t value_size) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
+    if (!db || !db->internal_db) return STARK_CLOSED;
     
     // If in transaction, log the change
     if (db->in_transaction) {
@@ -66,7 +66,7 @@ URAGE_API urage_result_t urage_add(urage_db_t* db, uint32_t key,
         // Get old value if exists
         char old_buffer[256];
         size_t old_size = sizeof(old_buffer);
-        int exists = (urage_get(db, key, old_buffer, &old_size) == URAGE_OK);
+        int exists = (stark_get(db, key, old_buffer, &old_size) == STARK_OK);
         
         // Log the change (simplified)
         // In real implementation, you'd store in transaction_log
@@ -75,42 +75,42 @@ URAGE_API urage_result_t urage_add(urage_db_t* db, uint32_t key,
     DB_Result result = db_insert(db->internal_db, key, value, value_size);
     
     switch (result) {
-        case DB_SUCCESS: return URAGE_OK;
-        case DB_FULL: return URAGE_FULL;
-        case DB_IO_ERROR: return URAGE_IO_ERROR;
-        case DB_MEMORY_ERROR: return URAGE_MEMORY_ERROR;
-        default: return URAGE_ERROR;
+        case DB_SUCCESS: return STARK_OK;
+        case DB_FULL: return STARK_FULL;
+        case DB_IO_ERROR: return STARK_IO_ERROR;
+        case DB_MEMORY_ERROR: return STARK_MEMORY_ERROR;
+        default: return STARK_ERROR;
     }
 }
 
-URAGE_API urage_result_t urage_get(urage_db_t* db, uint32_t key,
+STARK_API stark_result_t stark_get(stark_db_t* db, uint32_t key,
                                    void* buffer, size_t* buffer_size) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!buffer || !buffer_size) return URAGE_INVALID_ARG;
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!buffer || !buffer_size) return STARK_INVALID_ARG;
     
     DB_Result result = db_find(db->internal_db, key, buffer, buffer_size);
     
     switch (result) {
-        case DB_SUCCESS: return URAGE_OK;
-        case DB_NOT_FOUND: return URAGE_NOT_FOUND;
-        case DB_ERROR: return URAGE_ERROR;
-        default: return URAGE_ERROR;
+        case DB_SUCCESS: return STARK_OK;
+        case DB_NOT_FOUND: return STARK_NOT_FOUND;
+        case DB_ERROR: return STARK_ERROR;
+        default: return STARK_ERROR;
     }
 }
 
-URAGE_API urage_result_t urage_delete(urage_db_t* db, uint32_t key) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
+STARK_API stark_result_t stark_delete(stark_db_t* db, uint32_t key) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
     
     DB_Result result = db_delete(db->internal_db, key);
     
     switch (result) {
-        case DB_SUCCESS: return URAGE_OK;
-        case DB_NOT_FOUND: return URAGE_NOT_FOUND;
-        default: return URAGE_ERROR;
+        case DB_SUCCESS: return STARK_OK;
+        case DB_NOT_FOUND: return STARK_NOT_FOUND;
+        default: return STARK_ERROR;
     }
 }
 
-URAGE_API int urage_exists(urage_db_t* db, uint32_t key) {
+STARK_API int stark_exists(stark_db_t* db, uint32_t key) {
     if (!db || !db->internal_db) return 0;
     
     char dummy[256];
@@ -122,16 +122,16 @@ URAGE_API int urage_exists(urage_db_t* db, uint32_t key) {
 
 // ==================== CURSOR ====================
 
-struct urage_cursor {
-    urage_db_t* db;
+struct stark_cursor {
+    stark_db_t* db;
     uint32_t current_key;
     int valid;
 };
 
-URAGE_API urage_cursor_t* urage_cursor_create(urage_db_t* db) {
+STARK_API stark_cursor_t* stark_cursor_create(stark_db_t* db) {
     if (!db) return NULL;
     
-    urage_cursor_t* cursor = (urage_cursor_t*)calloc(1, sizeof(urage_cursor_t));
+    stark_cursor_t* cursor = (stark_cursor_t*)calloc(1, sizeof(stark_cursor_t));
     if (!cursor) return NULL;
     
     cursor->db = db;
@@ -141,38 +141,38 @@ URAGE_API urage_cursor_t* urage_cursor_create(urage_db_t* db) {
     return cursor;
 }
 
-URAGE_API urage_result_t urage_cursor_first(urage_cursor_t* cursor) {
-    if (!cursor) return URAGE_INVALID_ARG;
+STARK_API stark_result_t stark_cursor_first(stark_cursor_t* cursor) {
+    if (!cursor) return STARK_INVALID_ARG;
     cursor->valid = 0;
-    return URAGE_NOT_FOUND;
+    return STARK_NOT_FOUND;
 }
 
-URAGE_API urage_result_t urage_cursor_last(urage_cursor_t* cursor) {
-    if (!cursor) return URAGE_INVALID_ARG;
+STARK_API stark_result_t stark_cursor_last(stark_cursor_t* cursor) {
+    if (!cursor) return STARK_INVALID_ARG;
     cursor->valid = 0;
-    return URAGE_NOT_FOUND;
+    return STARK_NOT_FOUND;
 }
 
-URAGE_API urage_result_t urage_cursor_next(urage_cursor_t* cursor) {
-    if (!cursor) return URAGE_INVALID_ARG;
-    return URAGE_NOT_FOUND;
+STARK_API stark_result_t stark_cursor_next(stark_cursor_t* cursor) {
+    if (!cursor) return STARK_INVALID_ARG;
+    return STARK_NOT_FOUND;
 }
 
-URAGE_API urage_result_t urage_cursor_prev(urage_cursor_t* cursor) {
-    if (!cursor) return URAGE_INVALID_ARG;
-    return URAGE_NOT_FOUND;
+STARK_API stark_result_t stark_cursor_prev(stark_cursor_t* cursor) {
+    if (!cursor) return STARK_INVALID_ARG;
+    return STARK_NOT_FOUND;
 }
 
-URAGE_API urage_result_t urage_cursor_get(urage_cursor_t* cursor,
+STARK_API stark_result_t stark_cursor_get(stark_cursor_t* cursor,
                                          uint32_t* key,
                                          void* buffer, size_t* buffer_size) {
-    if (!cursor || !cursor->valid) return URAGE_NOT_FOUND;
-    if (!key || !buffer || !buffer_size) return URAGE_INVALID_ARG;
+    if (!cursor || !cursor->valid) return STARK_NOT_FOUND;
+    if (!key || !buffer || !buffer_size) return STARK_INVALID_ARG;
     
-    return URAGE_NOT_FOUND;
+    return STARK_NOT_FOUND;
 }
 
-URAGE_API void urage_cursor_destroy(urage_cursor_t* cursor) {
+STARK_API void stark_cursor_destroy(stark_cursor_t* cursor) {
     free(cursor);
 }
 
@@ -189,23 +189,23 @@ static uint32_t hash_string(const char* str) {
     return hash;
 }
 
-URAGE_API urage_result_t urage_put_str(urage_db_t* db, const char* key,
+STARK_API stark_result_t stark_put_str(stark_db_t* db, const char* key,
                                        const void* value, size_t value_size) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!key || !value || value_size == 0) return URAGE_INVALID_ARG;
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!key || !value || value_size == 0) return STARK_INVALID_ARG;
     
     // Hash the string key to uint32_t
     uint32_t hashed_key = hash_string(key);
     printf("Debug: String key '%s' hashed to %u\n", key, hashed_key);
     
-    // Use existing urage_add with hashed key
-    return urage_add(db, hashed_key, value, value_size);
+    // Use existing stark_add with hashed key
+    return stark_add(db, hashed_key, value, value_size);
 }
 
-URAGE_API urage_result_t urage_get_str(urage_db_t* db, const char* key,
+STARK_API stark_result_t stark_get_str(stark_db_t* db, const char* key,
                                        void* buffer, size_t* buffer_size) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!key || !buffer_size) return URAGE_INVALID_ARG;
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!key || !buffer_size) return STARK_INVALID_ARG;
     
     // Hash the string key to uint32_t
     uint32_t hashed_key = hash_string(key);
@@ -219,36 +219,36 @@ URAGE_API urage_result_t urage_get_str(urage_db_t* db, const char* key,
         DB_Result result = db_find(db->internal_db, hashed_key, dummy, &dummy_size);
         if (result == DB_SUCCESS || (result == DB_ERROR && dummy_size > 0)) {
             *buffer_size = dummy_size;
-            return URAGE_ERROR;  // Return error but with valid size
+            return STARK_ERROR;  // Return error but with valid size
         }
-        return URAGE_NOT_FOUND;
+        return STARK_NOT_FOUND;
     }
     
     // Normal get operation
-    return urage_get(db, hashed_key, buffer, buffer_size);
+    return stark_get(db, hashed_key, buffer, buffer_size);
 }
 
-URAGE_API urage_result_t urage_del_str(urage_db_t* db, const char* key) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!key) return URAGE_INVALID_ARG;
+STARK_API stark_result_t stark_del_str(stark_db_t* db, const char* key) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!key) return STARK_INVALID_ARG;
     
     uint32_t hashed_key = hash_string(key);
-    return urage_delete(db, hashed_key);
+    return stark_delete(db, hashed_key);
 }
 
-URAGE_API int urage_exists_str(urage_db_t* db, const char* key) {
+STARK_API int stark_exists_str(stark_db_t* db, const char* key) {
     if (!db || !db->internal_db) return 0;
     if (!key) return 0;
     
     uint32_t hashed_key = hash_string(key);
-    return urage_exists(db, hashed_key);
+    return stark_exists(db, hashed_key);
 }
 
 // ==================== STATISTICS ====================
 
-URAGE_API urage_result_t urage_stats(urage_db_t* db, urage_stats_t* stats) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!stats) return URAGE_INVALID_ARG;
+STARK_API stark_result_t stark_stats(stark_db_t* db, stark_stats_t* stats) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!stats) return STARK_INVALID_ARG;
     
     Database* internal = db->internal_db;
     
@@ -267,16 +267,16 @@ URAGE_API urage_result_t urage_stats(urage_db_t* db, urage_stats_t* stats) {
     stats->btree_height = 1;
     stats->data_size = internal->storage->next_offset;
     
-    return URAGE_OK;
+    return STARK_OK;
 }
 
-URAGE_API const char* urage_error(urage_db_t* db) {
+STARK_API const char* stark_error(stark_db_t* db) {
     if (!db) return "Database handle is NULL";
     return db->last_error;
 }
 
-URAGE_API urage_result_t urage_sync(urage_db_t* db) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
+STARK_API stark_result_t stark_sync(stark_db_t* db) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
     
     Database* internal = db->internal_db;
     
@@ -295,76 +295,76 @@ URAGE_API urage_result_t urage_sync(urage_db_t* db) {
     }
     
     printf("✅ Synced to disk\n");
-    return URAGE_OK;
+    return STARK_OK;
 }
 
 // ==================== TYPE SYSTEM IMPLEMENTATION ====================
 
 // Forward declarations of type functions (implemented in type.c)
-extern urage_result_t type_create(urage_db_t* db, const char* name, 
+extern stark_result_t type_create(stark_db_t* db, const char* name, 
                                   FieldDef* fields, uint32_t field_count);
-extern TypeDef* type_get(urage_db_t* db, const char* name);
-extern urage_result_t type_delete(urage_db_t* db, const char* name);
-extern urage_result_t type_list(urage_db_t* db, char*** names, uint32_t* count);
-extern urage_result_t type_serialize(FieldDef* fields, uint32_t field_count,
+extern TypeDef* type_get(stark_db_t* db, const char* name);
+extern stark_result_t type_delete(stark_db_t* db, const char* name);
+extern stark_result_t type_list(stark_db_t* db, char*** names, uint32_t* count);
+extern stark_result_t type_serialize(FieldDef* fields, uint32_t field_count,
                                      const char* field_values, void* buffer);
-extern urage_result_t type_deserialize(FieldDef* fields, uint32_t field_count,
+extern stark_result_t type_deserialize(FieldDef* fields, uint32_t field_count,
                                        const void* buffer, char* output, size_t output_size);
 
-URAGE_API urage_result_t urage_define_type(urage_db_t* db, const char* name,
+STARK_API stark_result_t stark_define_type(stark_db_t* db, const char* name,
                                            FieldDef* fields, uint32_t field_count) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!name || !fields || field_count == 0) return URAGE_INVALID_ARG;
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!name || !fields || field_count == 0) return STARK_INVALID_ARG;
     
     return type_create(db, name, fields, field_count);
 }
 
-URAGE_API urage_result_t urage_undefine_type(urage_db_t* db, const char* name) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!name) return URAGE_INVALID_ARG;
+STARK_API stark_result_t stark_undefine_type(stark_db_t* db, const char* name) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!name) return STARK_INVALID_ARG;
     
     return type_delete(db, name);
 }
 
-URAGE_API TypeDef* urage_get_type(urage_db_t* db, const char* name) {
+STARK_API TypeDef* stark_get_type(stark_db_t* db, const char* name) {
     if (!db || !db->internal_db) return NULL;
     if (!name) return NULL;
     
     return type_get(db, name);
 }
 
-URAGE_API urage_result_t urage_list_types(urage_db_t* db, char*** names, uint32_t* count) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!names || !count) return URAGE_INVALID_ARG;
+STARK_API stark_result_t stark_list_types(stark_db_t* db, char*** names, uint32_t* count) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!names || !count) return STARK_INVALID_ARG;
     
     return type_list(db, names, count);
 }
 
-URAGE_API urage_result_t urage_add_typed(urage_db_t* db, const char* type_name,
+STARK_API stark_result_t stark_add_typed(stark_db_t* db, const char* type_name,
                                          uint32_t key, const char* field_values) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!type_name || !field_values) return URAGE_INVALID_ARG;
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!type_name || !field_values) return STARK_INVALID_ARG;
     
     // Get type definition
     TypeDef* type = type_get(db, type_name);
-    if (!type) return URAGE_NOT_FOUND;
+    if (!type) return STARK_NOT_FOUND;
     
     // Allocate buffer for the struct
     void* buffer = calloc(1, type->size);
     if (!buffer) {
         free(type);
-        return URAGE_MEMORY_ERROR;
+        return STARK_MEMORY_ERROR;
     }
     
     // Parse field_values and fill buffer
-    urage_result_t result = type_serialize(type->fields, type->field_count, 
+    stark_result_t result = type_serialize(type->fields, type->field_count, 
                                           field_values, buffer);
     
-    if (result == URAGE_OK) {
+    if (result == STARK_OK) {
         // Store with type:key prefix
         char data_key[256];
         snprintf(data_key, sizeof(data_key), "%s:%u", type_name, key);
-        result = urage_put_str(db, data_key, buffer, type->size);
+        result = stark_put_str(db, data_key, buffer, type->size);
     }
     
     free(buffer);
@@ -372,10 +372,10 @@ URAGE_API urage_result_t urage_add_typed(urage_db_t* db, const char* type_name,
     return result;
 }
 
-URAGE_API urage_result_t urage_get_typed(urage_db_t* db, const char* type_name,
+STARK_API stark_result_t stark_get_typed(stark_db_t* db, const char* type_name,
                                          uint32_t key, char* output, size_t output_size) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!type_name || !output || output_size == 0) return URAGE_INVALID_ARG;
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!type_name || !output || output_size == 0) return STARK_INVALID_ARG;
     
     printf("🔍 Looking up type: '%s'\n", type_name);
     
@@ -383,7 +383,7 @@ URAGE_API urage_result_t urage_get_typed(urage_db_t* db, const char* type_name,
     TypeDef* type = type_get(db, type_name);
     if (!type) {
         printf("❌ Type '%s' not found in database\n", type_name);
-        return URAGE_NOT_FOUND;
+        return STARK_NOT_FOUND;
     }
     
     printf("✅ Found type: %s (ID: %u, size: %u bytes)\n", type->name, type->id, type->size);
@@ -396,22 +396,22 @@ URAGE_API urage_result_t urage_get_typed(urage_db_t* db, const char* type_name,
     void* buffer = malloc(type->size);
     if (!buffer) {
         free(type);
-        return URAGE_MEMORY_ERROR;
+        return STARK_MEMORY_ERROR;
     }
     
     size_t size = type->size;
-    urage_result_t result = urage_get_str(db, data_key, buffer, &size);
+    stark_result_t result = stark_get_str(db, data_key, buffer, &size);
     
-    if (result == URAGE_OK) {
+    if (result == STARK_OK) {
         printf("✅ Data retrieved, size: %zu bytes\n", size);
         // Format output using type fields
         result = type_deserialize(type->fields, type->field_count, 
                                   buffer, output, output_size);
-    } else if (result == URAGE_NOT_FOUND) {
+    } else if (result == STARK_NOT_FOUND) {
         printf("❌ Data key '%s' not found\n", data_key);
         free(buffer);
         free(type);
-        return URAGE_NOT_FOUND;
+        return STARK_NOT_FOUND;
     }
     
     free(buffer);
@@ -431,11 +431,11 @@ typedef struct {
     int is_delete;
 } TransactionEntry;
 
-URAGE_API urage_result_t urage_begin(urage_db_t* db) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
+STARK_API stark_result_t stark_begin(stark_db_t* db) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
     
     if (db->in_transaction) {
-        return URAGE_ERROR;  // Already in transaction
+        return STARK_ERROR;  // Already in transaction
     }
     
     db->in_transaction = 1;
@@ -444,16 +444,16 @@ URAGE_API urage_result_t urage_begin(urage_db_t* db) {
     
     if (!db->transaction_log) {
         db->in_transaction = 0;
-        return URAGE_MEMORY_ERROR;
+        return STARK_MEMORY_ERROR;
     }
     
     printf("✅ Transaction started\n");
-    return URAGE_OK;
+    return STARK_OK;
 }
 
-URAGE_API urage_result_t urage_commit(urage_db_t* db) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!db->in_transaction) return URAGE_ERROR;
+STARK_API stark_result_t stark_commit(stark_db_t* db) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!db->in_transaction) return STARK_ERROR;
     
     // In a real implementation, you'd:
     // 1. Write all changes to disk
@@ -466,12 +466,12 @@ URAGE_API urage_result_t urage_commit(urage_db_t* db) {
     db->in_transaction = 0;
     
     printf("✅ Transaction committed\n");
-    return URAGE_OK;
+    return STARK_OK;
 }
 
-URAGE_API urage_result_t urage_rollback(urage_db_t* db) {
-    if (!db || !db->internal_db) return URAGE_CLOSED;
-    if (!db->in_transaction) return URAGE_ERROR;
+STARK_API stark_result_t stark_rollback(stark_db_t* db) {
+    if (!db || !db->internal_db) return STARK_CLOSED;
+    if (!db->in_transaction) return STARK_ERROR;
     
     // In a real implementation, you'd:
     // 1. Restore all original values from log
@@ -483,10 +483,10 @@ URAGE_API urage_result_t urage_rollback(urage_db_t* db) {
     db->in_transaction = 0;
     
     printf("✅ Transaction rolled back\n");
-    return URAGE_OK;
+    return STARK_OK;
 }
 
-URAGE_API int urage_in_transaction(urage_db_t* db) {
+STARK_API int stark_in_transaction(stark_db_t* db) {
     if (!db) return 0;
     return db->in_transaction;
 }

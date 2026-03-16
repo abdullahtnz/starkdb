@@ -1,0 +1,8 @@
+/home/abdullahtnz/Desktop/starkdb/build/CMakeFiles/stark.dir
+/home/abdullahtnz/Desktop/starkdb/build/CMakeFiles/stark_cli.dir
+/home/abdullahtnz/Desktop/starkdb/build/CMakeFiles/edit_cache.dir
+/home/abdullahtnz/Desktop/starkdb/build/CMakeFiles/rebuild_cache.dir
+/home/abdullahtnz/Desktop/starkdb/build/CMakeFiles/list_install_components.dir
+/home/abdullahtnz/Desktop/starkdb/build/CMakeFiles/install.dir
+/home/abdullahtnz/Desktop/starkdb/build/CMakeFiles/install/local.dir
+/home/abdullahtnz/Desktop/starkdb/build/CMakeFiles/install/strip.dir

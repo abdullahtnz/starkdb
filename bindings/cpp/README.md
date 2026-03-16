@@ -1,15 +1,15 @@
-# URAGE C++ Bindings
+# STARK C++ Bindings
 
-Simple, modern C++ wrapper for the URAGE database.
+Simple, modern C++ wrapper for the STARK database.
 
 ## Quick Start
 
 ```cpp
-#include <urage.hpp>
+#include <stark.hpp>
 
 int main() {
     // Open database
-    urage::Database db("mydb");
+    stark::Database db("mydb");
     
     // Store data
     db.put(42, "Hello C++!");

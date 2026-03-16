@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "urage.h"
+#include "stark.h"
 
 void print_help() {
     // Colors
@@ -22,7 +22,7 @@ void print_help() {
     printf("║        %s%s╚██████╔╝██║  ██║██║  ██║╚██████╔╝███████╗%s        ║\n", BOLD, PURPLE2, PURPLE);
     printf("║        %s%s ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝%s        ║\n", BOLD, PURPLE2, PURPLE);
     printf("║                                                          ║\n");
-    printf("║                %sURAGE Database CLI%s                        ║\n", CYAN, PURPLE);
+    printf("║                %sSTARK Database CLI%s                        ║\n", CYAN, PURPLE);
     printf("║                                                          ║\n");
     printf("╚══════════════════════════════════════════════════════════╝%s\n", RESET);
 
@@ -71,15 +71,15 @@ int main(int argc, char* argv[]) {
     printf("Opening database: %s\n", db_path);
     
     
-    urage_db_t* db = urage_open(db_path, 0);
+    stark_db_t* db = stark_open(db_path, 0);
     if (!db) {
         printf("Failed to open database!\n");
         return 1;
     }
     
-    printf("URAGE Database ready. Type 'help' for commands.\n");
+    printf("STARK Database ready. Type 'help' for commands.\n");
     printf("\n╔══════════════════════════════════════╗");
-    printf("\n║        URAGE Database CLI            ║");
+    printf("\n║        STARK Database CLI            ║");
     printf("\n╚══════════════════════════════════════╝");
     printf("\n");
 
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
     char value[256];
     
     while (1) {
-        printf("\nurage> ");
+        printf("\nstark> ");
         fflush(stdout);
         
         if (!fgets(line, sizeof(line), stdin)) break;
@@ -141,15 +141,15 @@ if (strcmp(cmd, "define") == 0) {
         FieldDef* fields = NULL;
         uint32_t field_count = 0;
         
-        if (type_parse_fields(fields_str, &fields, &field_count) == URAGE_OK) {
+        if (type_parse_fields(fields_str, &fields, &field_count) == STARK_OK) {
             // Create the type
-            urage_result_t r = urage_define_type(db, name, fields, field_count);
+            stark_result_t r = stark_define_type(db, name, fields, field_count);
             
-            if (r == URAGE_OK) {
+            if (r == STARK_OK) {
                 printf("✅ Type '%s' defined successfully (%u fields, %u bytes total)\n", 
                        name, field_count, 
                        field_count > 0 ? fields[field_count-1].offset + fields[field_count-1].size : 0);
-            } else if (r == URAGE_ERROR) {
+            } else if (r == STARK_ERROR) {
                 printf("❌ Type '%s' already exists\n", name);
             } else {
                 printf("❌ Failed to define type '%s' (error %d)\n", name, r);
@@ -168,10 +168,10 @@ if (strcmp(cmd, "define") == 0) {
 }
         else if (strcmp(cmd, "undefine") == 0) {
             if (sscanf(line, "undefine %63s", type_name) == 1) {
-                urage_result_t r = urage_undefine_type(db, type_name);
-                if (r == URAGE_OK) {
+                stark_result_t r = stark_undefine_type(db, type_name);
+                if (r == STARK_OK) {
                     printf("✅ Type '%s' deleted\n", type_name);
-                } else if (r == URAGE_NOT_FOUND) {
+                } else if (r == STARK_NOT_FOUND) {
                     printf("❌ Type '%s' does not exist\n", type_name);
                 } else {
                     printf("❌ Failed to delete type '%s' (error %d)\n", type_name, r);
@@ -183,7 +183,7 @@ if (strcmp(cmd, "define") == 0) {
         else if (strcmp(cmd, "desc") == 0) {
     if (sscanf(line, "desc %63s", type_name) == 1) {
         // Try to get the type
-        TypeDef* type = urage_get_type(db, type_name);
+        TypeDef* type = stark_get_type(db, type_name);
         
         if (type) {
             printf("📌 Type: %s\n", type->name);
@@ -223,10 +223,10 @@ if (strcmp(cmd, "define") == 0) {
             
             // This is simplified - you'd need better parsing
             if (sscanf(line, "add %63s %u %[^\n]", type, &key_val, field_data) >= 2) {
-                urage_result_t r = urage_add_typed(db, type, key_val, field_data);
-                if (r == URAGE_OK)
+                stark_result_t r = stark_add_typed(db, type, key_val, field_data);
+                if (r == STARK_OK)
                     printf("OK: %s:%u stored\n", type, key_val);
-                else if (r == URAGE_NOT_FOUND)
+                else if (r == STARK_NOT_FOUND)
                     printf("Type '%s' not defined\n", type);
                 else
                     printf("Error: %d\n", r);
@@ -238,10 +238,10 @@ if (strcmp(cmd, "define") == 0) {
             // Parse: get type key
             if (sscanf(line, "get %63s %u", type_name, &key) == 2) {
                 char output[512];
-                urage_result_t r = urage_get_typed(db, type_name, key, output, sizeof(output));
-                if (r == URAGE_OK) {
+                stark_result_t r = stark_get_typed(db, type_name, key, output, sizeof(output));
+                if (r == STARK_OK) {
                     printf("%s:%u -> %s\n", type_name, key, output);
-                } else if (r == URAGE_NOT_FOUND) {
+                } else if (r == STARK_NOT_FOUND) {
                     printf("%s:%u not found\n", type_name, key);
                 } else {
                     printf("Error: %d\n", r);
@@ -254,8 +254,8 @@ if (strcmp(cmd, "define") == 0) {
         // ===== NUMERIC KEY COMMANDS =====
         else if (strcmp(cmd, "addn") == 0) {
             if (sscanf(line, "%*s %u %255s", &key, value) == 2) {
-                urage_result_t r = urage_add(db, key, value, strlen(value) + 1);
-                if (r == URAGE_OK)
+                stark_result_t r = stark_add(db, key, value, strlen(value) + 1);
+                if (r == STARK_OK)
                     printf("OK: %u -> %s\n", key, value);
                 else
                     printf("Error: %d\n", r);
@@ -267,13 +267,13 @@ if (strcmp(cmd, "define") == 0) {
             if (sscanf(line, "%*s %u", &key) == 1) {
                 char buffer[256];
                 size_t size = sizeof(buffer);
-                urage_result_t r = urage_get(db, key, buffer, &size);
-                if (r == URAGE_OK) {
+                stark_result_t r = stark_get(db, key, buffer, &size);
+                if (r == STARK_OK) {
                     // Clamp to valid index if returned size fills the buffer.
                     size_t end = (size < sizeof(buffer)) ? size : (sizeof(buffer) - 1);
                     buffer[end] = '\0'; // works
                     printf("%u -> %s\n", key, buffer);
-                } else if (r == URAGE_NOT_FOUND) {
+                } else if (r == STARK_NOT_FOUND) {
                     printf("Key %u not found\n", key);
                 } else {
                     printf("Error: %d\n", r);
@@ -284,10 +284,10 @@ if (strcmp(cmd, "define") == 0) {
         }
         else if (strcmp(cmd, "deln") == 0) {
             if (sscanf(line, "%*s %u", &key) == 1) {
-                urage_result_t r = urage_delete(db, key);
-                if (r == URAGE_OK)
+                stark_result_t r = stark_delete(db, key);
+                if (r == STARK_OK)
                     printf("Key %u deleted\n", key);
-                else if (r == URAGE_NOT_FOUND)
+                else if (r == STARK_NOT_FOUND)
                     printf("Key %u not found\n", key);
                 else
                     printf("Error: %d\n", r);
@@ -297,7 +297,7 @@ if (strcmp(cmd, "define") == 0) {
         }
         else if (strcmp(cmd, "existsn") == 0) {
             if (sscanf(line, "%*s %u", &key) == 1) {
-                int exists = urage_exists(db, key);
+                int exists = stark_exists(db, key);
                 printf("Key %u %s\n", key, exists ? "exists" : "does not exist");
             } else {
                 printf("Usage: existsn <key>\n");
@@ -308,8 +308,8 @@ if (strcmp(cmd, "define") == 0) {
 else if (strcmp(cmd, "adds") == 0) {
     char str_key[256];
     if (sscanf(line, "%*s %255s %255s", str_key, value) == 2) {
-        urage_result_t r = urage_put_str(db, str_key, value, strlen(value) + 1);
-        if (r == URAGE_OK)
+        stark_result_t r = stark_put_str(db, str_key, value, strlen(value) + 1);
+        if (r == STARK_OK)
             printf("OK: '%s' -> %s\n", str_key, value);
         else
             printf("Error: %d\n", r);
@@ -322,13 +322,13 @@ else if (strcmp(cmd, "gets") == 0) {
     if (sscanf(line, "%*s %255s", str_key) == 1) {
         char buffer[256];
         size_t size = sizeof(buffer);
-        urage_result_t r = urage_get_str(db, str_key, buffer, &size);
-        if (r == URAGE_OK) {
+        stark_result_t r = stark_get_str(db, str_key, buffer, &size);
+        if (r == STARK_OK) {
             // Clamp to valid index if returned size fills the buffer.
             size_t end = (size < sizeof(buffer)) ? size : (sizeof(buffer) - 1);
             buffer[end] = '\0';
             printf("'%s' -> %s\n", str_key, buffer);
-        } else if (r == URAGE_NOT_FOUND) {
+        } else if (r == STARK_NOT_FOUND) {
             printf("Key '%s' not found\n", str_key);
         } else {
             printf("Error: %d\n", r);
@@ -340,10 +340,10 @@ else if (strcmp(cmd, "gets") == 0) {
 else if (strcmp(cmd, "dels") == 0) {
     char str_key[256];
     if (sscanf(line, "%*s %255s", str_key) == 1) {
-        urage_result_t r = urage_del_str(db, str_key);
-        if (r == URAGE_OK)
+        stark_result_t r = stark_del_str(db, str_key);
+        if (r == STARK_OK)
             printf("Key '%s' deleted\n", str_key);
-        else if (r == URAGE_NOT_FOUND)
+        else if (r == STARK_NOT_FOUND)
             printf("Key '%s' not found\n", str_key);
         else
             printf("Error: %d\n", r);
@@ -354,7 +354,7 @@ else if (strcmp(cmd, "dels") == 0) {
 else if (strcmp(cmd, "exists_str") == 0) {
     char str_key[256];
     if (sscanf(line, "%*s %255s", str_key) == 1) {
-        int exists = urage_exists_str(db, str_key);
+        int exists = stark_exists_str(db, str_key);
         printf("Key '%s' %s\n", str_key, exists ? "exists" : "does not exist");
     } else {
         printf("Usage: exists_str <str_key>\n");
@@ -363,22 +363,22 @@ else if (strcmp(cmd, "exists_str") == 0) {
 
     // TRansaction part
     else if (strcmp(cmd, "begin") == 0) {
-        urage_result_t r = urage_begin(db);
-        if (r == URAGE_OK)
+        stark_result_t r = stark_begin(db);
+        if (r == STARK_OK)
             printf("✅ Transaction started\n");
         else
             printf("❌ Failed to start transaction\n");
     }
     else if (strcmp(cmd, "commit") == 0) {
-        urage_result_t r = urage_commit(db);
-        if (r == URAGE_OK)
+        stark_result_t r = stark_commit(db);
+        if (r == STARK_OK)
             printf("✅ Transaction committed\n");
         else
             printf("❌ No active transaction\n");
     }
     else if (strcmp(cmd, "rollback") == 0) {
-        urage_result_t r = urage_rollback(db);
-        if (r == URAGE_OK)
+        stark_result_t r = stark_rollback(db);
+        if (r == STARK_OK)
             printf("✅ Transaction rolled back\n");
         else
             printf("❌ No active transaction\n");
@@ -386,8 +386,8 @@ else if (strcmp(cmd, "exists_str") == 0) {
         
         // ===== GENERAL COMMANDS =====
         else if (strcmp(cmd, "stats") == 0) {
-            urage_stats_t stats;
-            if (urage_stats(db, &stats) == URAGE_OK) {
+            stark_stats_t stats;
+            if (stark_stats(db, &stats) == STARK_OK) {
                 printf("Database Statistics:\n");
                 printf("  Keys: %llu\n", (unsigned long long)stats.keys_count);
                 printf("  B-tree height: %u\n", stats.btree_height);
@@ -398,7 +398,7 @@ else if (strcmp(cmd, "exists_str") == 0) {
             }
         }
         else if (strcmp(cmd, "sync") == 0) {
-            if (urage_sync(db) == URAGE_OK)
+            if (stark_sync(db) == STARK_OK)
                 printf("Synced to disk\n");
             else
                 printf("Sync failed\n");
@@ -414,7 +414,7 @@ else if (strcmp(cmd, "exists_str") == 0) {
         }
     }
     
-    urage_close(db);
+    stark_close(db);
     printf("Database closed.\n");
     return 0;
 }
