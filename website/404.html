@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="icon" type="image/png" href="assets/starklogo.png">
+    <link rel="apple-touch-icon" type="image/png" href="assets/starklogo.png"/>
+    
+    <meta name="robots" content="noindex, follow">
+    
+    <title>404 - Page Not Found | StarkDB</title>
+    <meta name="description" content="Oops! The page you're looking for doesn't exist. Return to StarkDB homepage or check our documentation.">
+
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="website/css/styles.css">
+    
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Mono', monospace;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #333;
+        }
+
+        /* Navigation - matching your site */
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: #333;
+            transition: transform 0.3s ease;
+        }
+
+        .logo:hover {
+            transform: scale(1.05);
+        }
+
+        .logo img {
+            height: 40px;
+            width: auto;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #333;
+            font-weight: 600;
+            font-family: 'Syne', sans-serif;
+            transition: color 0.3s ease;
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: #667eea;
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .mobile-menu {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #333;
+        }
+
+        /* Main error page styles */
+        .error-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .error-page {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 4rem 3rem;
+            max-width: 700px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+            animation: slideUp 0.6s ease-out;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .error-code {
+            font-size: 10rem;
+            font-weight: 800;
+            font-family: 'Syne', sans-serif;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.8;
+            }
+        }
+
+        .error-message {
+            font-size: 2rem;
+            font-weight: 600;
+            font-family: 'Syne', sans-serif;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .error-description {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+            max-width: 450px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .error-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 2.5rem 0;
+        }
+
+        .button {
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-family: 'Syne', sans-serif;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            min-width: 160px;
+        }
+
+        .button-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .button-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .button-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .button-secondary:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        .help-links {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .help-links p {
+            color: #666;
+            margin-bottom: 1rem;
+        }
+
+        .help-links a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+            position: relative;
+            padding-bottom: 2px;
+        }
+
+        .help-links a:hover {
+            color: #764ba2;
+        }
+
+        .help-links a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+        }
+
+        .help-links a:hover::after {
+            width: 100%;
+        }
+
+        /* Footer */
+        footer {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem;
+            text-align: center;
+            font-family: 'Space Mono', monospace;
+            color: #666;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .nav-container {
+                padding: 1rem;
+            }
+
+            .mobile-menu {
+                display: block;
+                z-index: 1001;
+            }
+
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(10px);
+                flex-direction: column;
+                gap: 0;
+                padding: 1rem 0;
+                box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+                border-top: 1px solid rgba(0, 0, 0, 0.1);
+            }
+
+            .nav-links.active {
+                display: flex;
+            }
+
+            .nav-links li {
+                width: 100%;
+                text-align: center;
+            }
+
+            .nav-links a {
+                display: block;
+                padding: 1rem;
+                width: 100%;
+            }
+
+            .nav-links a::after {
+                display: none;
+            }
+
+            .error-page {
+                padding: 3rem 1.5rem;
+                margin: 1rem;
+            }
+
+            .error-code {
+                font-size: 7rem;
+            }
+
+            .error-message {
+                font-size: 1.5rem;
+            }
+
+            .error-description {
+                font-size: 1rem;
+                padding: 0 1rem;
+            }
+
+            .button {
+                min-width: 140px;
+                padding: 0.875rem 1.5rem;
+                font-size: 0.95rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .error-code {
+                font-size: 5rem;
+            }
+
+            .error-message {
+                font-size: 1.25rem;
+            }
+
+            .error-actions {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+            }
+
+            .button {
+                width: 100%;
+                text-align: center;
+            }
+
+            .logo span {
+                font-size: 1.2rem;
+            }
+
+            .logo img {
+                height: 30px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .error-page {
+                padding: 2rem 1rem;
+            }
+
+            .error-code {
+                font-size: 4rem;
+            }
+
+            .help-links {
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Touch-friendly improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .button {
+                padding: 1.2rem 2rem;
+            }
+
+            .nav-links a {
+                padding: 1.2rem;
+            }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            }
+
+            .navbar, footer, .error-page {
+                background: rgba(30, 30, 46, 0.95);
+            }
+
+            .error-message {
+                color: #fff;
+            }
+
+            .error-description {
+                color: #a0a0a0;
+            }
+
+            .logo {
+                color: #fff;
+            }
+
+            .nav-links a {
+                color: #fff;
+            }
+
+            .mobile-menu {
+                color: #fff;
+            }
+
+            footer {
+                color: #a0a0a0;
+                border-top-color: rgba(255, 255, 255, 0.1);
+            }
+
+            .help-links {
+                border-top-color: rgba(255, 255, 255, 0.1);
+            }
+
+            .help-links p {
+                color: #a0a0a0;
+            }
+
+            .button-secondary {
+                background: transparent;
+                color: #fff;
+                border-color: #fff;
+            }
+
+            .button-secondary:hover {
+                background: #667eea;
+                border-color: #667eea;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <img src="../assets/starklogo.png" alt="StarkDB Logo">
+                <span>STARKDB</span>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="/">Home</a></li>
+                <li><a href="docs.html">Docs</a></li>
+                <li><a href="install.html">Install</a></li>
+                <li><a href="https://github.com/yourusername/starkdb" target="_blank">GitHub</a></li>
+            </ul>
+            <button class="mobile-menu" id="mobileMenu" aria-label="Menu">☰</button>
+        </div>
+    </nav>
+
+    <div class="error-wrapper">
+        <main class="error-page">
+            <div class="error-code">404</div>
+            <h1 class="error-message">Page Not Found</h1>
+            <p class="error-description">
+                Oops! The page you're looking for has vanished into the digital void. 
+                Don't worry, even databases lose data sometimes!
+            </p>
+            
+            <div class="error-actions">
+                <a href="/" class="button button-primary">🏠 Go Home</a>
+                <a href="docs.html" class="button button-secondary">📚 Browse Docs</a>
+                <a href="installation.html" class="button button-secondary">⚡ Install Guide</a>
+            </div>
+            
+            <div class="help-links">
+                <p>Try these instead:</p>
+                <p>
+                    <a href="docs.html"> Documentation</a> • 
+                    <a href="https://github.com/yourusername/starkdb">⭐ GitHub</a> • 
+                    <a href="../index.html"> Homepage</a>
+                </p>
+            </div>
+        </main>
+    </div>
+
+    <footer>
+        <p>© 2026 STARKDB. Open source (MIT) • Made with ❤️ for developers</p>
+    </footer>
+
+    <script>
+        // Mobile menu toggle
+        const mobileMenu = document.getElementById('mobileMenu');
+        const navLinks = document.getElementById('navLinks');
+
+        mobileMenu.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            mobileMenu.textContent = navLinks.classList.contains('active') ? '✕' : '☰';
+        });
+
+        // Close mobile menu when clicking a link
+        document.querySelectorAll('.nav-links a').forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.classList.remove('active');
+                mobileMenu.textContent = '☰';
+            });
+        });
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!navLinks.contains(e.target) && !mobileMenu.contains(e.target)) {
+                navLinks.classList.remove('active');
+                mobileMenu.textContent = '☰';
+            }
+        });
+
+        // Smooth scroll to top when clicking logo
+        document.querySelector('.logo').addEventListener('click', (e) => {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 300);
+        });
+    </script>
+
+    <script src="website/js/main.js"></script>
+</body>
+</html>
