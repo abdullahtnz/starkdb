@@ -14,17 +14,17 @@
   <meta name="keywords" content="starkdb documentation, starkdb docs, stark cli commands, stark c++ api, key-value database docs, b-tree database guide, embedded database reference, ACID transactions">
   <meta name="author" content="Abdullah Novruzlu">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://starkdb.org/docs.html">
+  <link rel="canonical" href="https://starkdb.org/docs">
 
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://starkdb.org/docs.html">
+  <meta property="og:url" content="https://starkdb.org/docs">
   <meta property="og:title" content="STARKDB Documentation — CLI & C++ API Reference">
   <meta property="og:description" content="Complete STARKDB documentation with CLI commands, C++ API reference, ACID transactions, and more.">
   <meta property="og:image" content="https://starkdb.org/assets/starklogo.png">
   <meta property="og:site_name" content="STARKDB">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="https://starkdb.org/docs.html">
+  <meta name="twitter:url" content="https://starkdb.org/docs">
   <meta name="twitter:title" content="STARKDB Documentation — CLI & C++ API Reference">
   <meta name="twitter:description" content="Complete STARKDB documentation with CLI commands, C++ API reference, ACID transactions, and more.">
   <meta name="twitter:image" content="https://starkdb.org/assets/starklogo.png">
@@ -35,7 +35,7 @@
     "@type": "TechArticle",
     "headline": "STARKDB Documentation — CLI & C++ API Reference",
     "description": "Complete documentation for STARKDB covering CLI commands, C++ API, ACID properties, types, transactions, cursor iteration, and benchmarks.",
-    "url": "https://starkdb.org/docs.html",
+    "url": "https://starkdb.org/docs",
     "author": { "@type": "Person", "name": "Abdullah Novruzlu" },
     "publisher": { "@type": "Organization", "name": "STARKDB" },
     "datePublished": "2026-01-01",
@@ -46,22 +46,22 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="../css/styles.css">
 </head>
 <body>
 
 <!-- NAVBAR -->
 <nav class="navbar" aria-label="Primary navigation">
   <div class="nav-container">
-    <a href="../index.html" class="logo" aria-label="STARKDB Home">
+    <a href="/" class="logo" aria-label="STARKDB Home">
       <img src="../assets/starklogo.png" alt="STARKDB logo" width="32" height="32">
       STARK<span>DB</span>
     </a>
     <ul class="nav-links">
-      <li><a href="../index.html">Home</a></li>
-      <li><a href="docs.html" class="active">Docs</a></li>
-      <li><a href="installation.html">Install</a></li>
-      <li><a href="logs.html">Logs</a></li>
+      <li><a href="/">Home</a></li>
+      <li><a href="/docs" class="active">Docs</a></li>
+      <li><a href="/installation">Install</a></li>
+      <li><a href="/logs">Logs</a></li>
       <li><a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a></li>
     </ul>
     <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener" class="nav-cta nav-desktop">Star on GitHub</a>
@@ -73,9 +73,10 @@
 
 <!-- MOBILE NAV -->
 <div class="mobile-nav" id="mobileNav" role="dialog" aria-label="Mobile navigation">
-  <a href="../index.html">Home</a>
-  <a href="docs.html" class="active">Docs</a>
-  <a href="installation.html">Install</a>
+  <a href="/">Home</a>
+  <a href="/docs" class="active">Docs</a>
+  <a href="/installation">Install</a>
+  <li><a href="/logs">Logs</a></li>
   <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a>
   <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener" class="nav-cta">Star on GitHub</a>
 </div>
@@ -91,7 +92,7 @@
         <li><a href="#architecture">Architecture</a></li>
         <li><a href="#acid">ACID Properties</a></li>
         <li><a href="#file-format">File Format</a></li>
-        <li><a href="installation.html">Installation</a></li>
+        <li><a href="/installation">Installation</a></li>
       </ul>
     </div>
     <div class="sidebar-section">
@@ -737,7 +738,7 @@ db.add(<span class="num">42</span>, <span class="str">"anything"</span>);
         <div class="api-card">
           <h4>Remove &amp; Exists</h4>
           <pre><code><span class="comment">// Remove — returns true if deleted,
-// false if key didn't exist</span>
+<span class="comment">// false if key didn't exist</span>
 <span class="kw">bool</span> removed = db.remove(<span class="num">1</span>);
 
 <span class="comment">// Check existence</span>
@@ -802,7 +803,7 @@ db.define_type(<span class="str">"player"</span>, {
 });
 
 <span class="comment">// Remove a type (returns
-// true if it existed)</span>
+<span class="comment">// true if it existed)</span>
 <span class="kw">bool</span> removed = db.undefine_type(
     <span class="str">"player"</span>);</code></pre>
         </div>
@@ -813,12 +814,12 @@ db.add_typed(<span class="str">"player"</span>, <span class="num">1</span>,
     <span class="str">"name=Hero hp=100 level=5"</span>);
 
 <span class="comment">// Get typed record (returns "" if
-// not found)</span>
+<span class="comment">// not found)</span>
 <span class="kw">std::string</span> v = db.get_typed(
     <span class="str">"player"</span>, <span class="num">1</span>);
 
 <span class="comment">// Describe type (returns vector
-// of Field objects)</span>
+<span class="comment">// of Field objects)</span>
 <span class="kw">auto</span> fields = db.describe_type(
     <span class="str">"player"</span>);</code></pre>
         </div>
@@ -849,7 +850,7 @@ db.put_str(<span class="str">"key"</span>, <span class="str">"val"</span>);
 db.commit();
 
 <span class="comment">// Or rollback (discard)</span>
-<span class="comment">// db.rollback();
+<span class="comment">// db.rollback();</span>
 
 <span class="comment">// Check if in transaction</span>
 <span class="kw">if</span> (db.in_transaction()) {
@@ -906,179 +907,43 @@ stark_close(db);</code></pre>
       </div>
     </section>
 
-    <!-- ================================================================
-         C++ API — UTILITIES & STATS
-         ================================================================ -->
-    <section id="cpp-utilities">
-      <h3>Utility Methods &amp; Statistics</h3>
-      <div class="api-grid">
-        <div class="api-card">
-          <h4>Database Stats</h4>
-          <pre><code><span class="comment">// Returns a Stats struct:</span>
-<span class="comment">//   .keys     - total key count</span>
-<span class="comment">//   .height   - B-tree height</span>
-<span class="comment">//   .data_size - data file bytes</span>
-<span class="comment">//   .pages    - B-tree page count</span>
-<span class="kw">auto</span> s = db.stats();
-std::cout &lt;&lt; <span class="str">"Keys: "</span>
-    &lt;&lt; s.keys &lt;&lt; std::endl;
-std::cout &lt;&lt; <span class="str">"Height: "</span>
-    &lt;&lt; s.height &lt;&lt; std::endl;
-std::cout &lt;&lt; <span class="str">"Data: "</span>
-    &lt;&lt; s.data_size &lt;&lt; <span class="str">" bytes"</span>
-    &lt;&lt; std::endl;
-std::cout &lt;&lt; <span class="str">"Pages: "</span>
-    &lt;&lt; s.pages &lt;&lt; std::endl;</code></pre>
-        </div>
-        <div class="api-card">
-          <h4>Sync &amp; Error</h4>
-          <pre><code><span class="comment">// Force flush to disk
-// (also done in destructor)</span>
-db.sync();
-
-<span class="comment">// Get last error message
-// (empty string if none)</span>
-<span class="kw">std::string</span> err =
-    db.get_last_error();
-<span class="kw">if</span> (!err.empty()) {
-    std::cerr &lt;&lt; err;
-}</code></pre>
-        </div>
-      </div>
-      <blockquote>
-        <p>The <code>Stats</code> struct provides: <code>keys</code> (uint64), <code>height</code> (uint32), <code>data_size</code> (uint64 bytes), and <code>pages</code> (uint32 B-tree pages).</p>
-      </blockquote>
-    </section>
-
-    <!-- ================================================================
-         C++ API — ERROR HANDLING
-         ================================================================ -->
-    <section id="cpp-errors">
-      <h3>Error Handling — Exceptions</h3>
-      <p>
-        The C++ wrapper uses exceptions for error handling. All exceptions inherit from <code>std::runtime_error</code>.
-      </p>
-
-      <div class="api-grid">
-        <div class="api-card">
-          <h4>Exception Types</h4>
-          <pre><code><span class="comment">// Base exception</span>
-stark::Error e(<span class="str">"message"</span>);
-
-<span class="comment">// Key not found</span>
-stark::NotFound nf;
-stark::NotFound nf2(<span class="str">"key_name"</span>);
-
-<span class="comment">// Both inherit from
-// std::runtime_error</span>
-<span class="kw">try</span> {
-    db.get(<span class="num">999</span>);
-} <span class="kw">catch</span> (<span class="kw">const</span> std::exception& e) {
-    std::cerr &lt;&lt; e.what();
-}</code></pre>
-        </div>
-        <div class="api-card">
-          <h4>When Exceptions Throw</h4>
-          <pre><code><span class="comment">// db.add()    - on write failure</span>
-<span class="comment">// db.get()    - on read failure</span>
-<span class="comment">//   (NOT for missing keys)</span>
-<span class="comment">// db.remove() - on failure</span>
-<span class="comment">//   (returns false if missing)</span>
-<span class="comment">// db.define_type() - if exists</span>
-<span class="comment">// db.begin()  - if already in</span>
-<span class="comment">//   transaction</span>
-<span class="comment">// Constructor - if can't open</span></code></pre>
-        </div>
-      </div>
-      <p>
-        Note: <code>get()</code> does <strong>not</strong> throw for missing keys — it returns an empty string. Use <code>exists()</code> or the default-value overload <code>get(key, default)</code> to distinguish.
-      </p>
-    </section>
-
     <hr class="divider">
 
     <!-- ================================================================
          C API — OVERVIEW
          ================================================================ -->
     <section id="c-overview">
-      <div class="section-tag">C API Reference</div>
-      <h2>C Function Reference</h2>
+      <div class="section-tag">C API</div>
+      <h2>Using STARK in C</h2>
       <p>
-        STARK is written in C. The C API is the lowest-level interface, used by language bindings (like the C++ wrapper) or directly in C projects. All functions use the <code>stark_</code> prefix.
+        The C API provides direct access to all STARK functionality. Include <code>&lt;stark.h&gt;</code> and link with <code>-lstark</code>.
       </p>
 
-      <h4>Lifecycle</h4>
-      <div class="cmd-section">
-        <table class="cmd-table">
-          <tr><td><code>stark_open(path, flags)</code></td><td>Open or create a database. Returns a handle or NULL. <code>flags</code> is reserved for future use (pass 0).</td></tr>
-          <tr><td><code>stark_close(db)</code></td><td>Close the database and flush all changes. Always call this when done.</td></tr>
-        </table>
-      </div>
+      <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment">// main.c</span>
+<span class="kw">#include</span> <span class="str">&lt;stark.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;stdio.h&gt;</span>
 
-      <h4>Numeric Key CRUD</h4>
-      <div class="cmd-section">
-        <table class="cmd-table">
-          <tr><td><code>stark_put(db, key, value, size)</code></td><td>Insert or update a key-value pair. Returns <code>stark_result_t</code>.</td></tr>
-          <tr><td><code>stark_add(db, key, value, size)</code></td><td>Same as <code>stark_put</code> — insert or update.</td></tr>
-          <tr><td><code>stark_get(db, key, buf, &size)</code></td><td>Get value by key. <code>buf</code> is output buffer, <code>size</code> is in/out. Returns <code>STARK_NOT_FOUND</code> if missing.</td></tr>
-          <tr><td><code>stark_delete(db, key)</code></td><td>Delete a key. Returns <code>STARK_OK</code> or <code>STARK_NOT_FOUND</code>.</td></tr>
-          <tr><td><code>stark_exists(db, key)</code></td><td>Check existence. Returns 1 or 0.</td></tr>
-        </table>
-      </div>
+<span class="kw">int</span> main() {
+    <span class="comment">// Open database</span>
+    stark_db_t* db = stark_open(<span class="str">"save"</span>, <span class="num">0</span>);
+    <span class="kw">if</span> (!db) {
+        printf(<span class="str">"Failed to open database\n"</span>);
+        <span class="kw">return</span> <span class="num">1</span>;
+    }
 
-      <h4>String Key CRUD</h4>
-      <div class="cmd-section">
-        <table class="cmd-table strings">
-          <tr><td><code>stark_put_str(db, key, value, size)</code></td><td>Insert or update with string key.</td></tr>
-          <tr><td><code>stark_get_str(db, key, buf, &size)</code></td><td>Get value by string key.</td></tr>
-          <tr><td><code>stark_del_str(db, key)</code></td><td>Delete by string key.</td></tr>
-          <tr><td><code>stark_exists_str(db, key)</code></td><td>Check string key existence. Returns 1 or 0.</td></tr>
-        </table>
-      </div>
+    <span class="comment">// Add a key</span>
+    stark_add(db, <span class="num">1</span>, <span class="str">"Hero"</span>);
 
-      <h4>Type System</h4>
-      <div class="cmd-section">
-        <table class="cmd-table types">
-          <tr><td><code>stark_define_type(db, name, fields, count)</code></td><td>Define a type with an array of <code>FieldDef</code> structs.</td></tr>
-          <tr><td><code>stark_undefine_type(db, name)</code></td><td>Delete a type and all its records.</td></tr>
-          <tr><td><code>stark_get_type(db, name)</code></td><td>Get type info. Returns <code>TypeDef*</code> (caller must <code>free()</code>), or NULL.</td></tr>
-          <tr><td><code>stark_list_types(db, &names, &count)</code></td><td>List all type names. Caller must free the array.</td></tr>
-          <tr><td><code>stark_add_typed(db, type, key, field_values)</code></td><td>Add a typed record. <code>field_values</code> is a string like <code>"name=Hero hp=100"</code>.</td></tr>
-          <tr><td><code>stark_get_typed(db, type, key, buf, size)</code></td><td>Get typed record as a formatted string.</td></tr>
-        </table>
-      </div>
+    <span class="comment">// Get the value</span>
+    <span class="kw">char</span> buf[<span class="num">256</span>];
+    size_t size = <span class="kw">sizeof</span>(buf);
+    stark_get(db, <span class="num">1</span>, buf, &size);
+    printf(<span class="str">"Value: %s\n"</span>, buf);
 
-      <h4>Cursor / Iteration</h4>
-      <div class="cmd-section">
-        <table class="cmd-table utilities">
-          <tr><td><code>stark_cursor_create(db)</code></td><td>Create a cursor. Returns handle or NULL.</td></tr>
-          <tr><td><code>stark_cursor_first(cur)</code></td><td>Move to first key.</td></tr>
-          <tr><td><code>stark_cursor_last(cur)</code></td><td>Move to last key.</td></tr>
-          <tr><td><code>stark_cursor_next(cur)</code></td><td>Move to next key.</td></tr>
-          <tr><td><code>stark_cursor_prev(cur)</code></td><td>Move to previous key.</td></tr>
-          <tr><td><code>stark_cursor_get(cur, &key, buf, &size)</code></td><td>Get current key and value.</td></tr>
-          <tr><td><code>stark_cursor_destroy(cur)</code></td><td>Free the cursor.</td></tr>
-        </table>
-      </div>
-
-      <h4>Transactions</h4>
-      <div class="cmd-section">
-        <table class="cmd-table transactions">
-          <tr><td><code>stark_begin(db)</code></td><td>Start a transaction.</td></tr>
-          <tr><td><code>stark_commit(db)</code></td><td>Commit transaction changes.</td></tr>
-          <tr><td><code>stark_rollback(db)</code></td><td>Rollback transaction changes.</td></tr>
-          <tr><td><code>stark_in_transaction(db)</code></td><td>Check if in a transaction. Returns 1 or 0.</td></tr>
-        </table>
-      </div>
-
-      <h4>Utilities</h4>
-      <div class="cmd-section">
-        <table class="cmd-table">
-          <tr><td><code>stark_stats(db, &stats)</code></td><td>Fill a <code>stark_stats_t</code> struct with database metrics.</td></tr>
-          <tr><td><code>stark_sync(db)</code></td><td>Flush all changes to disk.</td></tr>
-          <tr><td><code>stark_error(db)</code></td><td>Get last error string. Do not free the returned pointer.</td></tr>
-        </table>
-      </div>
+    <span class="comment">// Close database</span>
+    stark_close(db);
+    <span class="kw">return</span> <span class="num">0</span>;
+}</code></pre>
     </section>
 
     <!-- ================================================================
@@ -1087,26 +952,22 @@ stark::NotFound nf2(<span class="str">"key_name"</span>);
     <section id="c-result-codes">
       <h3>Result Codes</h3>
       <p>
-        All C API functions that can fail return a <code>stark_result_t</code> enum. The C++ wrapper converts these to exceptions.
+        All C API functions return a result code indicating success or the type of error that occurred.
       </p>
       <div class="table-section">
         <table>
-          <thead><tr><th>Code</th><th>Value</th><th>Meaning</th></tr></thead>
+          <thead><tr><th>Constant</th><th>Value</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td class="check"><code>STARK_OK</code></td><td>0</td><td>Operation succeeded</td></tr>
-            <tr><td><code>STARK_ERROR</code></td><td>-1</td><td>General error — type already exists, invalid state, etc.</td></tr>
-            <tr><td><code>STARK_NOT_FOUND</code></td><td>-2</td><td>Key or type not found</td></tr>
-            <tr><td><code>STARK_FULL</code></td><td>-3</td><td>Database is full (rare — usually indicates disk space)</td></tr>
-            <tr><td><code>STARK_IO_ERROR</code></td><td>-4</td><td>Disk I/O failure — check permissions and disk space</td></tr>
-            <tr><td><code>STARK_INVALID_ARG</code></td><td>-5</td><td>Invalid argument passed — null pointer, bad field definition, etc.</td></tr>
-            <tr><td><code>STARK_CLOSED</code></td><td>-6</td><td>Operation on a closed database handle</td></tr>
-            <tr><td><code>STARK_MEMORY_ERROR</code></td><td>-7</td><td>Out of memory — allocation failed</td></tr>
+            <tr><td><code>STARK_OK</code></td><td>0</td><td>Operation succeeded.</td></tr>
+            <tr><td><code>STARK_ERR</code></td><td>1</td><td>Generic error.</td></tr>
+            <tr><td><code>STARK_NOT_FOUND</code></td><td>2</td><td>Key or record not found.</td></tr>
+            <tr><td><code>STARK_INVALID_KEY</code></td><td>3</td><td>Invalid key format or size.</td></tr>
+            <tr><td><code>STARK_FULL</code></td><td>4</td><td>Database file is full.</td></tr>
+            <tr><td><code>STARK_CORRUPT</code></td><td>5</td><td>Database file is corrupted.</td></tr>
+            <tr><td><code>STARK_NO_MEM</code></td><td>6</td><td>Out of memory.</td></tr>
           </tbody>
         </table>
       </div>
-      <p>
-        When using the C++ wrapper, check <code>db.get_last_error()</code> after operations, or catch <code>stark::Error</code> exceptions. The C API result codes are preserved as the exception message where applicable.
-      </p>
     </section>
 
     <hr class="divider">
@@ -1115,10 +976,11 @@ stark::NotFound nf2(<span class="str">"key_name"</span>);
          BENCHMARKS
          ================================================================ -->
     <section id="benchmarks">
-      <div class="section-tag">Performance</div>
-      <h2>Benchmarks</h2>
-
-      <h3>Speed Comparison</h3>
+      <div class="section-tag">Benchmarks</div>
+      <h2>Performance Benchmarks</h2>
+      <p>
+        STARK is designed for raw speed and minimal resource usage. Here are benchmark comparisons with popular databases.
+      </p>
       <div class="table-section">
         <table>
           <thead><tr><th>Operation</th><th>STARK</th><th>SQLite</th><th>Redis</th><th>MongoDB</th></tr></thead>
@@ -1130,97 +992,96 @@ stark::NotFound nf2(<span class="str">"key_name"</span>);
           </tbody>
         </table>
       </div>
-
-      <h3 style="margin-top:2rem">File Size per 1,000 Records</h3>
-      <div class="table-section">
-        <table>
-          <thead><tr><th>Database</th><th>File Size</th></tr></thead>
-          <tbody>
-            <tr><td>STARK</td><td class="check">~100 KB</td></tr>
-            <tr><td>SQLite</td><td>~150 KB</td></tr>
-            <tr><td>LevelDB</td><td>~120 KB</td></tr>
-            <tr><td>MongoDB</td><td>~2 MB</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <p>
+        STARK's B-tree implementation provides O(log n) lookups with minimal disk I/O, making it ideal for game save systems and local storage.
+      </p>
     </section>
-
-    <hr class="divider">
 
     <!-- ================================================================
          DECISION GUIDE
          ================================================================ -->
     <section id="decision-guide">
-      <div class="section-tag">Guidance</div>
+      <div class="section-tag">Decision Guide</div>
       <h2>Should You Use STARK?</h2>
       <div class="cards-grid">
         <div class="card pro">
           <div class="card-title">Choose STARK when...</div>
           <div class="card-row">
             <div class="card-icon">⚡</div>
-            <div class="card-text"><strong>You need simplicity</strong><span>1 line to save, 1 line to load</span></div>
+            <div class="card-text">
+              <strong>You need simplicity</strong>
+              <span>1 line to save, 1 line to load</span>
+            </div>
           </div>
           <div class="card-row">
             <div class="card-icon">🪶</div>
-            <div class="card-text"><strong>You need a tiny footprint</strong><span>2 MB memory, &lt; 1 MB file size</span></div>
+            <div class="card-text">
+              <strong>You need a tiny footprint</strong>
+              <span>2 MB memory, &lt; 1 MB file size</span>
+            </div>
           </div>
           <div class="card-row">
             <div class="card-icon">🚀</div>
-            <div class="card-text"><strong>You need raw speed</strong><span>0.5 µs reads — effectively instant</span></div>
+            <div class="card-text">
+              <strong>You need raw speed</strong>
+              <span>0.5 µs reads — effectively instant</span>
+            </div>
           </div>
           <div class="card-row">
             <div class="card-icon">🎮</div>
-            <div class="card-text"><strong>You're making a game</strong><span>Built specifically for game developers</span></div>
+            <div class="card-text">
+              <strong>You're making a game</strong>
+              <span>Built specifically for game developers</span>
+            </div>
           </div>
           <div class="card-row">
             <div class="card-icon">🆓</div>
-            <div class="card-text"><strong>You want it free</strong><span>Open source, MIT license</span></div>
+            <div class="card-text">
+              <strong>You want it free</strong>
+              <span>Open source, MIT license</span>
+            </div>
           </div>
         </div>
         <div class="card con">
           <div class="card-title">Skip STARK when...</div>
           <div class="card-row">
             <div class="card-icon">🗃️</div>
-            <div class="card-text"><strong>You need SQL queries</strong><span>Use SQLite instead</span></div>
+            <div class="card-text">
+              <strong>You need SQL queries</strong>
+              <span>Use SQLite instead</span>
+            </div>
           </div>
           <div class="card-row">
             <div class="card-icon">🌐</div>
-            <div class="card-text"><strong>You need network access</strong><span>Use Redis or MongoDB instead</span></div>
+            <div class="card-text">
+              <strong>You need network access</strong>
+              <span>Use Redis or MongoDB instead</span>
+            </div>
           </div>
           <div class="card-row">
             <div class="card-icon">👥</div>
-            <div class="card-text"><strong>You have multiple users</strong><span>Use PostgreSQL instead</span></div>
-          </div>
-          <div class="card-row">
-            <div class="card-icon">📊</div>
-            <div class="card-text"><strong>You're doing big data analytics</strong><span>Use MongoDB instead</span></div>
-          </div>
-          <div class="card-row">
-            <div class="card-icon">📱</div>
-            <div class="card-text"><strong>You need complex queries on mobile</strong><span>Use SQLite instead</span></div>
+            <div class="card-text">
+              <strong>You have multiple users</strong>
+              <span>Use PostgreSQL instead</span>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-  </div><!-- /docs-content -->
-</div><!-- /docs-layout -->
-
-<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar navigation">
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
-    <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
-  </svg>
-</button>
+  </div>
+</div>
 
 <footer>
   <p>STARK · Open Source · MIT License</p>
   <div class="footer-links">
     <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a>
-    <a href="docs.html">Docs</a>
-    <a href="installation.html">Install</a>
+    <a href="/docs">Docs</a>
+    <a href="/installation">Install</a>
+    <a href="/logs">Logs</a>
   </div>
 </footer>
 
-<script src="js/main.js"></script>
+<script src="../js/main.js"></script>
 </body>
 </html>
