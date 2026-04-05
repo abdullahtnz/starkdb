@@ -92,13 +92,6 @@
 <main>
 <div class="logs-timeline">
 
-  <!-- ============================================================
-       LOG ENTRY TEMPLATE — Copy this block to add a new entry.
-       Fill in: date, version, type (feature/fix/breaking),
-       contributors, and change sections.
-       ============================================================ -->
-
-  <!-- LOG ENTRY — Example 1 -->
   <article class="log-entry feature" aria-label="Version 1.1.0 release">
     <div class="log-header">
       <time class="log-date" datetime="2026-03-31">Mar 31, 2026</time>
@@ -111,28 +104,28 @@
     <div class="log-section">
       <div class="log-section-title added">Added</div>
       <ul class="log-list">
-        <li class="added">Complete responsive website with landing, docs, install, and logs pages</li>
+        <li class="added">Complete starkdb website with landing, docs, install, and logs pages</li>
         <li class="added">Full CLI reference with command tables and examples</li>
         <li class="added">C++ API reference with code snippets for all methods</li>
-        <li class="added">Changelog page with timeline layout</li>
-        <li class="added">SEO optimization — JSON-LD, Open Graph, Twitter cards, sitemap</li>
+        <li class="added">C++ binding</li>
       </ul>
     </div>
 
     <div class="log-section">
-      <div class="log-section-title fixed">Fixed</div>
+      <div class="log-section-title fixed">Fixed (on website)</div>
       <ul class="log-list">
         <li class="fixed">Responsive layout issues on tablet and mobile viewports</li>
         <li class="fixed">Sidebar/content overlap on large desktop screens</li>
         <li class="fixed">Table overflow breaking layout on narrow viewports</li>
+        
+
       </ul>
     </div>
   </article>
 
-  <!-- LOG ENTRY — Example 2 (remove/edit to add your own) -->
   <article class="log-entry fix" aria-label="Version 1.0.0 release">
     <div class="log-header">
-      <time class="log-date" datetime="2026-01-01">Jan 01, 2026</time>
+      <time class="log-date" datetime="2026-01-01">Jan 10, 2026</time>
       <span class="log-version">v1.0.0</span>
       <span class="log-type feature">Initial Release</span>
     </div>
@@ -144,7 +137,6 @@
       <ul class="log-list">
         <li class="added">B-tree key-value engine in C</li>
         <li class="added">CLI interface with numeric keys, string keys, and typed records</li>
-        <li class="added">C++ wrapper (stark.hpp) with exception-safe API</li>
         <li class="added">ACID transaction support (begin/commit/rollback)</li>
         <li class="added">Cursor-based iteration via C API</li>
         <li class="added">User-defined type system with int and string(N) fields</li>
