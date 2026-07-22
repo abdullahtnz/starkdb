@@ -1459,10 +1459,13 @@
       container.querySelectorAll('.lab-tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      const panels = container.parentElement.querySelectorAll('.lab-tab-panel');
+      const panels = container.querySelectorAll('.lab-tab-panel');
       panels.forEach(p => p.classList.remove('active'));
-      const target = container.parentElement.querySelector('.lab-tab-panel[data-tab="' + tabId + '"]');
+      const target = container.querySelector('.lab-tab-panel[data-tab="' + tabId + '"]');
       if (target) target.classList.add('active');
+      if (tabId === 'btree') {
+        requestAnimationFrame(() => BTreeRenderer.render());
+      }
     });
   }
 
