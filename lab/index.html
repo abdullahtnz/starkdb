@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <link rel="icon" type="image/png" href="../assets/starklogo.png">
+  <link rel="apple-touch-icon" href="../assets/starklogo.png">
+
+  <title>STARKDB Lab — Interactive Database Learning Environment</title>
+  <meta name="title" content="STARKDB Lab — Interactive Database Learning Environment">
+  <meta name="description" content="Learn STARKDB interactively. Try CLI commands in a live terminal, visualize B-Tree operations, explore djb2 hashing, and solve coding challenges — all in your browser.">
+  <meta name="keywords" content="starkdb lab, starkdb playground, learn starkdb, database tutorial, b-tree visualization, key-value database practice, interactive database learning">
+  <meta name="author" content="Abdullah Novruzlu">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://lab.starkdb.org">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://lab.starkdb.org">
+  <meta property="og:title" content="STARKDB Lab — Interactive Database Learning Environment">
+  <meta property="og:description" content="Learn STARKDB interactively. Live terminal, B-Tree visualizer, djb2 hash explorer, and coding challenges.">
+  <meta property="og:image" content="https://starkdb.org/assets/starklogo.png">
+  <meta property="og:site_name" content="STARKDB">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://lab.starkdb.org">
+  <meta name="twitter:title" content="STARKDB Lab — Interactive Database Learning Environment">
+  <meta name="twitter:description" content="Learn STARKDB interactively. Live terminal, B-Tree visualizer, djb2 hash explorer, and coding challenges.">
+  <meta name="twitter:image" content="https://starkdb.org/assets/starklogo.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "STARKDB Lab",
+    "url": "https://lab.starkdb.org",
+    "description": "Interactive learning environment for the STARKDB embedded database. Features a live terminal simulator, B-Tree visualizer, djb2 hash explorer, and practice challenges.",
+    "applicationCategory": "EducationalApplication",
+    "operatingSystem": "All",
+    "author": { "@type": "Person", "name": "Abdullah Novruzlu" }
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar" aria-label="Primary navigation">
+  <div class="nav-container">
+    <a href="/" class="logo" aria-label="STARKDB Home">
+      <img src="../assets/starklogo.png" alt="STARKDB logo" width="32" height="32">
+      STARK<span>DB</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/installation">Install</a></li>
+      <li><a href="/lab" class="active">Lab</a></li>
+      <li><a href="/logs">Logs</a></li>
+      <li><a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+    <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener" class="nav-cta nav-desktop">Star on GitHub</a>
+    <button class="hamburger" id="hamburger" aria-label="Toggle navigation menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- MOBILE NAV -->
+<div class="mobile-nav" id="mobileNav" role="dialog" aria-label="Mobile navigation">
+  <a href="/">Home</a>
+  <a href="/docs">Docs</a>
+  <a href="/installation">Install</a>
+  <a href="/lab" class="active">Lab</a>
+  <a href="/logs">Logs</a>
+  <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a>
+  <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener" class="nav-cta">Star on GitHub</a>
+</div>
+
+<!-- PAGE HEADER -->
+<div class="page-header">
+  <div class="section-tag">Interactive</div>
+  <h1>STARKDB Lab</h1>
+  <p>Learn, experiment, and practice STARKDB commands in a live browser environment. No installation needed.</p>
+</div>
+
+<!-- LAB CONTENT -->
+<div class="lab-layout">
+
+  <!-- TERMINAL SECTION -->
+  <section class="lab-terminal-section" aria-labelledby="terminal-heading">
+    <h2 id="terminal-heading" class="lab-section-title">Terminal</h2>
+    <div class="lab-terminal-wrapper">
+      <div class="terminal-topbar">
+        <span class="terminal-dot dot-red"></span>
+        <span class="terminal-dot dot-yellow"></span>
+        <span class="terminal-dot dot-green"></span>
+        <span class="terminal-title">stark_cli mydb — STARKDB Lab Session</span>
+      </div>
+      <div class="lab-terminal" id="lab-terminal" role="log" aria-live="polite" aria-label="STARKDB terminal"></div>
+    </div>
+  </section>
+
+  <!-- RIGHT PANELS SECTION -->
+  <section class="lab-panels-section" aria-labelledby="panels-heading">
+    <h2 id="panels-heading" class="lab-section-title">Explorer</h2>
+
+    <div class="lab-tabs-container">
+      <div class="lab-tabs" role="tablist">
+        <button class="lab-tab-btn active" data-tab="inspector" role="tab" aria-selected="true">DB Inspector</button>
+        <button class="lab-tab-btn" data-tab="btree" role="tab" aria-selected="false">B-Tree Viz</button>
+        <button class="lab-tab-btn" data-tab="hash" role="tab" aria-selected="false">Hash Explorer</button>
+        <button class="lab-tab-btn" data-tab="challenges" role="tab" aria-selected="false">Challenges</button>
+      </div>
+
+      <!-- DB Inspector Panel -->
+      <div class="lab-tab-panel active" data-tab="inspector" role="tabpanel">
+        <div class="db-inspector" id="db-inspector">
+          <div class="inspector-empty">Database is empty. Try a command like:<br><code>addn 1 "Hello"</code> or <code>demo</code></div>
+        </div>
+      </div>
+
+      <!-- B-Tree Panel -->
+      <div class="lab-tab-panel" data-tab="btree" role="tabpanel">
+        <div class="btree-controls">
+          <div class="btree-control-row">
+            <input type="number" id="btree-insert-input" placeholder="Insert key..." aria-label="Insert B-Tree key">
+            <button class="btree-btn btree-insert" id="btree-insert-btn">Insert</button>
+          </div>
+          <div class="btree-control-row">
+            <input type="number" id="btree-search-input" placeholder="Search key..." aria-label="Search B-Tree key">
+            <button class="btree-btn btree-search" id="btree-search-btn">Search</button>
+          </div>
+          <div class="btree-control-row">
+            <input type="number" id="btree-delete-input" placeholder="Delete key..." aria-label="Delete B-Tree key">
+            <button class="btree-btn btree-delete" id="btree-delete-btn">Delete</button>
+          </div>
+          <div class="btree-control-row">
+            <button class="btree-btn btree-reset" id="btree-reset-btn">Reset Tree</button>
+          </div>
+        </div>
+        <div class="btree-feedback" id="btree-feedback"></div>
+        <div class="btree-canvas" id="btree-canvas"></div>
+        <div class="btree-info">
+          <p>STARKDB uses a <em>B-Tree</em> index for O(log n) lookups. Each internal node holds up to 5 keys (degree 3). Insert keys to see how the tree splits and grows.</p>
+        </div>
+      </div>
+
+      <!-- Hash Panel -->
+      <div class="lab-tab-panel" data-tab="hash" role="tabpanel">
+        <div class="hash-controls">
+          <input type="text" id="hash-input" placeholder="Enter a string key..." aria-label="String to hash">
+          <button class="btree-btn btree-insert" id="hash-btn">Hash it</button>
+        </div>
+        <div class="hash-quick" id="hash-quick">Type a string to see its djb2 hash</div>
+        <div class="hash-explorer" id="hash-explorer"></div>
+        <div class="hash-info">
+          <p>String keys in STARKDB are hashed using the <em>djb2 algorithm</em>. The result is a uint32 that maps to a numeric B-Tree key. This means all string lookups are O(log n).</p>
+        </div>
+      </div>
+
+      <!-- Challenges Panel -->
+      <div class="lab-tab-panel" data-tab="challenges" role="tabpanel">
+        <div class="challenge-content" id="challenge-content"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUICK COMMANDS SECTION -->
+  <section class="lab-quick-section" id="lab-quick-commands" aria-labelledby="quick-heading">
+    <h2 id="quick-heading" class="lab-section-title">Quick Commands</h2>
+    <div class="quick-cmds">
+      <button class="quick-cmd" data-cmd="demo">demo</button>
+      <button class="quick-cmd" data-cmd="help">help</button>
+      <button class="quick-cmd" data-cmd="stats">stats</button>
+      <button class="quick-cmd" data-cmd="tutorial">tutorial</button>
+      <button class="quick-cmd" data-cmd='addn 1 "Hello World"'>addn 1 "Hello"</button>
+      <button class="quick-cmd" data-cmd='getn 1'>getn 1</button>
+      <button class="quick-cmd" data-cmd='adds "theme" "dark"'>adds "theme" "dark"</button>
+      <button class="quick-cmd" data-cmd='define player { name string(32) hp int level int gold int }'>define player {...}</button>
+      <button class="quick-cmd" data-cmd='add player 1 name="Hero" hp=100 level=5 gold=250'>add player 1 ...</button>
+      <button class="quick-cmd" data-cmd='get player 1'>get player 1</button>
+      <button class="quick-cmd" data-cmd="begin">begin</button>
+      <button class="quick-cmd" data-cmd="commit">commit</button>
+      <button class="quick-cmd" data-cmd="challenge">challenge</button>
+    </div>
+  </section>
+
+</div>
+
+<!-- CONTACT -->
+<section class="contact" aria-labelledby="contact-heading">
+  <div class="section-tag" style="justify-content:center;margin-bottom:1rem">Feedback</div>
+  <h2 id="contact-heading">Questions or Feedback?</h2>
+  <p>Found a bug in the lab? Have a suggestion? Let us know.</p>
+  <a href="mailto:novruzluabdullah03@gmail.com" class="contact-link">
+    <span>✉</span>
+    novruzluabdullah03@gmail.com
+  </a>
+</section>
+
+<footer>
+  <p>STARK · Open Source · MIT License</p>
+  <div class="footer-links">
+    <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a>
+    <a href="/docs">Docs</a>
+    <a href="/installation">Install</a>
+    <a href="/lab">Lab</a>
+    <a href="/logs">Logs</a>
+    <a href="mailto:novruzluabdullah03@gmail.com">Contact</a>
+  </div>
+</footer>
+
+<script src="../js/main.js"></script>
+<script src="js/lab.js"></script>
+</body>
+</html>

@@ -89,6 +89,7 @@
       <li><a href="/" class="active">Home</a></li>
       <li><a href="/docs">Docs</a></li>
       <li><a href="/installation">Install</a></li>
+      <li><a href="/lab">Lab</a></li>
       <li><a href="/logs">Logs</a></li>
       <li><a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a></li>
     </ul>
@@ -104,7 +105,8 @@
   <a href="/" class="active">Home</a>
   <a href="/docs">Docs</a>
   <a href="/installation">Install</a>
-  <li><a href="/logs">Logs</a></li>
+  <a href="/lab">Lab</a>
+  <a href="/logs">Logs</a>
   <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a>
   <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener" class="nav-cta">Star on GitHub</a>
 </div>
@@ -137,6 +139,7 @@
 
   <div class="hero-ctas">
     <a href="/installation" class="btn btn-primary">Get Started</a>
+    <a href="/lab" class="btn btn-ghost">Try the Lab</a>
     <a href="/docs" class="btn btn-ghost">Read the Docs</a>
   </div>
 
@@ -146,365 +149,180 @@
   </div>
 </header>
 
-<!-- WORKFLOW -->
 <main>
+<!-- OVERVIEW -->
 <section aria-labelledby="overview-heading">
   <div class="section-tag">Overview</div>
-  <h2 id="overview-heading">How STARK Works</h2>
+  <h2 id="overview-heading">What is STARKDB?</h2>
+
   <div class="workflow">
     <p>
-      STARK works with <em>.dat</em> and <em>.idx</em> files to save data. It supports <em>ACID properties</em>, ensuring safe and reliable data persistence. After building STARK, users can add data via either the <em>STARK CLI</em> or directly through <em>C++ code</em>.
+      STARKDB is a <em>lightweight embedded key-value database</em> written in C. It stores data using a <em>B-tree index</em> across two files (.idx and .dat), delivering <em>sub-microsecond reads</em> with a footprint of only 2–5 MB of RAM. Built for offline games, mobile and desktop apps — where speed and simplicity matter most.
     </p>
   </div>
-  <blockquote>
-    <p>You can use STARK via the CLI or embed it in your C++ project.</p>
-  </blockquote>
 </section>
 
 <hr class="divider">
 
-<!-- INSTALLATION -->
-<section aria-labelledby="install-heading">
-  <div class="section-tag">Setup</div>
-  <h2 id="install-heading">Installation</h2>
-  <p>One-time setup. Takes about 5 minutes.</p>
+<!-- HIGHLIGHTS GRID -->
+<section aria-labelledby="highlights-heading">
+  <div class="section-tag">Highlights</div>
+  <h2 id="highlights-heading">Why STARKDB?</h2>
 
-  <a href="https://github.com/abdullahtnz/starkdb" class="contact-link" style="margin-bottom:20px;display:inline-flex" target="_blank" rel="noopener">DOWNLOAD</a>
+  <div class="highlights-grid">
 
-  <div class="tabs" role="tablist">
-    <button class="tab-btn active" onclick="switchTab('win')" role="tab" aria-selected="true" aria-controls="tab-win">Windows</button>
-    <button class="tab-btn" onclick="switchTab('lin')" role="tab" aria-selected="false" aria-controls="tab-lin">Linux</button>
-  </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">⚡</div>
+      <div class="highlight-value">0.5 µs</div>
+      <div class="highlight-label">Read Speed</div>
+      <p>B-tree indexed lookups are effectively instant. Faster than SQLite, Redis, and MongoDB for single-record operations in local environments.</p>
+    </div>
 
-  <div id="tab-win" class="tab-content active" role="tabpanel">
-    <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment"># 1. Download STARK</span>
-<span class="comment"># <a href="https://github.com/abdullahtnz/starkdb" style="color:#e8e8f0;text-decoration:none">Click here</a> and download the ZIP file</span>
-<span class="comment"># Extract to your project folder C:\my_project</span>
-<span class="comment"># Path should be: C:\my_project\starkdb</span>
+    <div class="highlight-card">
+      <div class="highlight-icon">🪶</div>
+      <div class="highlight-value">&lt; 1 MB</div>
+      <div class="highlight-label">File Size</div>
+      <p>Ultra-compact storage. A database with 1,000 records takes only ~100 KB. Perfect for resource-constrained environments.</p>
+    </div>
 
-<span class="comment"># 2. Open Command Prompt as Administrator</span>
-<span class="comment"># Press Windows Key, type "cmd", right-click, "Run as Administrator"</span>
+    <div class="highlight-card">
+      <div class="highlight-icon">🌳</div>
+      <div class="highlight-value">B-Tree</div>
+      <div class="highlight-label">Index Engine</div>
+      <p>O(log n) lookups, inserts, and deletes. Keys stay sorted. Range queries are efficient. No hash collisions on numeric keys.</p>
+    </div>
 
-<span class="comment"># 3. Go to STARK folder</span>
-<span class="cmd">cd C:\my_project\starkdb</span>
-<span class="cmd">mkdir build</span>
-<span class="cmd">cd build</span>
+    <div class="highlight-card">
+      <div class="highlight-icon">🔒</div>
+      <div class="highlight-value">ACID</div>
+      <div class="highlight-label">Compliant</div>
+      <p>Atomic, Consistent, Isolated, Durable. Transactions with begin, commit, and rollback. Crash-safe append-only writes.</p>
+    </div>
 
-<span class="comment"># 4. Build</span>
-<span class="cmd">cmake .. -G "MinGW Makefiles" -DBUILD_SHARED=ON</span>
-<span class="cmd">mingw32-make</span>
+    <div class="highlight-card">
+      <div class="highlight-icon">📐</div>
+      <div class="highlight-value">Types</div>
+      <div class="highlight-label">User-Defined Schemas</div>
+      <p>Define typed records with int and string(N) fields. Store game entities, configs, and inventory — all in one database.</p>
+    </div>
 
-<span class="comment"># 5. Install (copy to MinGW)</span>
-<span class="cmd">copy libstark.dll C:\mingw64\bin\</span>
-<span class="cmd">copy libstark.dll.a C:\mingw64\lib\</span>
-<span class="cmd">copy ..\bindings\cpp\stark.hpp C:\mingw64\include\</span>
-<span class="cmd">copy ..\core\include\stark.h C:\mingw64\include\</span>
+    <div class="highlight-card">
+      <div class="highlight-icon">🔑</div>
+      <div class="highlight-value">3 Key Modes</div>
+      <div class="highlight-label">Numeric · String · Typed</div>
+      <p>Use uint32 numeric keys for IDs, string keys for settings (djb2 hashed), or typed records for structured game data.</p>
+    </div>
 
-<span class="comment"># DONE! One-time setup complete.</span></code></pre>
-  </div>
-
-  <div id="tab-lin" class="tab-content" role="tabpanel">
-    <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment"># 1. Open Terminal (Ctrl+Alt+T) and go to your project folder</span>
-<span class="cmd">cd Desktop/my_project</span>
-
-<span class="comment"># 2. Download and build</span>
-<span class="cmd">git clone https://github.com/abdullahtnz/starkdb.git</span>
-<span class="cmd">cd starkdb</span>
-<span class="cmd">mkdir build</span>
-<span class="cmd">cd build</span>
-<span class="cmd">cmake .. -DBUILD_SHARED=ON</span>
-<span class="cmd">make</span>
-
-<span class="comment"># 3. Install</span>
-<span class="cmd">sudo make install</span>
-<span class="cmd">sudo ldconfig</span>
-
-<span class="comment"># DONE! One-time setup complete.</span></code></pre>
   </div>
 </section>
 
 <hr class="divider">
 
-<!-- CLI USAGE -->
-<section aria-labelledby="cli-heading">
-  <div class="section-tag">CLI</div>
-  <h2 id="cli-heading">Using STARK in CLI</h2>
+<!-- QUICK LOOK -->
+<section aria-labelledby="quick-heading">
+  <div class="section-tag">At a Glance</div>
+  <h2 id="quick-heading">One Line. All It Takes.</h2>
 
-  <div class="note">Works identically on Windows and Linux.</div>
-
-  <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment"># Go to stark/build folder</span>
-<span class="cmd">cd C:\my_project\build</span>
-<span class="cmd">./stark_cli filename</span>   <span class="comment"># Creates or opens a file in the build folder</span>
-
-<span class="comment"># To open/create a file in another directory:</span>
-<span class="cmd">cd C:\my_project\my_folder</span>
-<span class="cmd">stark_cli filename</span></code></pre>
-
-  <div class="cmd-section">
-    <div class="cmd-group-title">General Commands</div>
-    <table class="cmd-table">
-      <tr><td>help</td><td>See all possible commands and usage</td></tr>
-      <tr><td>exit</td><td>Save and quit</td></tr>
-    </table>
-
-    <div class="cmd-group-title">Numeric Key Commands</div>
-    <table class="cmd-table">
-      <tr><td>addn key value</td><td>Add a numeric key with value (string or num)</td></tr>
-      <tr><td>getn key</td><td>Get a numeric key and its value</td></tr>
-      <tr><td>deln key</td><td>Delete a numeric key and its value</td></tr>
-      <tr><td>existsn key</td><td>Check if a numeric key exists</td></tr>
-    </table>
-
-    <div class="cmd-group-title strings">String Key Commands</div>
-    <table class="cmd-table strings">
-      <tr><td>adds key value</td><td>Add a string key with value (string or num)</td></tr>
-      <tr><td>gets key</td><td>Get a string key and its value</td></tr>
-      <tr><td>dels key</td><td>Delete a string key and its value</td></tr>
-      <tr><td>exist_str key</td><td>Check if a string key exists</td></tr>
-    </table>
-
-    <div class="cmd-group-title types">Type Commands</div>
-    <table class="cmd-table types">
-      <tr><td>define name { ... }</td><td>Define a new user-defined type with typed fields</td></tr>
-      <tr><td>undefine name</td><td>Delete a type definition</td></tr>
-      <tr><td>desc name</td><td>Inspect a type and its fields</td></tr>
-      <tr><td>add typename key ...</td><td>Add a record of a specific type</td></tr>
-      <tr><td>get typename key</td><td>Get a typed record by key</td></tr>
-    </table>
-
-    <div class="cmd-group-title transactions">Transaction Commands</div>
-    <table class="cmd-table transactions">
-      <tr><td>begin</td><td>Start the transaction process</td></tr>
-      <tr><td>commit</td><td>End and save the transaction</td></tr>
-      <tr><td>rollback</td><td>Undo changes if the transaction fails</td></tr>
-    </table>
-  </div>
-</section>
-
-<hr class="divider">
-
-<!-- TYPE EXAMPLE -->
-<section aria-labelledby="types-heading">
-  <div class="section-tag">Walkthrough</div>
-  <h2 id="types-heading">Types in Action</h2>
-  <p>Types are user-defined, flexible structures — perfect for game entities like players, items, or enemies.</p>
-
-  <div class="note">When defining string fields in a type, you must specify the string size. Use <code>string(255)</code> if memory usage isn't a concern.</div>
-
-  <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment"># 1. Open your database</span>
+  <div class="split-showcase">
+    <div class="showcase-block">
+      <div class="showcase-label">CLI</div>
+      <pre><code><span class="comment"># Open a database</span>
 <span class="cmd">stark_cli mygame</span>
 
-<span class="comment"># 2. Define a player type</span>
-<span class="kw">stark&gt; define</span> player {
-    name  <span class="str">string(32)</span>
-    hp    <span class="str">int</span>
-    level <span class="str">int</span>
-    gold  <span class="str">int</span>
-    class <span class="str">string(16)</span>
-}
+<span class="comment"># Save data</span>
+<span class="kw">stark&gt; addn</span> <span class="num">1</span> <span class="str">"Hero"</span>
+<span class="kw">stark&gt; addn</span> <span class="num">2</span> <span class="str">"100 HP"</span>
 
-<span class="comment"># 3. Add players (key = 1 and key = 2)</span>
-<span class="kw">stark&gt; add</span> player <span class="num">1</span> name=<span class="str">"Hero"</span> hp=<span class="num">100</span> level=<span class="num">5</span> gold=<span class="num">250</span> class=<span class="str">"warrior"</span>
-<span class="kw">stark&gt; add</span> player <span class="num">2</span> name=<span class="str">"Mage"</span> hp=<span class="num">80</span>  level=<span class="num">7</span> gold=<span class="num">450</span> class=<span class="str">"wizard"</span>
+<span class="comment"># Read it back</span>
+<span class="kw">stark&gt; getn</span> <span class="num">1</span>
+<span class="comment"># Output: Hero</span>
 
-<span class="comment"># 4. Get player data</span>
-<span class="kw">stark&gt; get</span> player <span class="num">1</span>
-<span class="comment"># Output: name="Hero" hp=100 level=5 gold=250 class="warrior"</span>
-
-<span class="comment"># 5. Check for non-existent key</span>
-<span class="kw">stark&gt; get</span> player <span class="num">3</span>
-<span class="comment"># Output: player:3 not found</span>
-
-<span class="comment"># 6. View type definition</span>
-<span class="kw">stark&gt; desc</span> player
-
-<span class="comment"># 7. Update player (overwrites existing record)</span>
-<span class="kw">stark&gt; add</span> player <span class="num">1</span> name=<span class="str">"Hero"</span> hp=<span class="num">85</span> level=<span class="num">6</span> gold=<span class="num">300</span> class=<span class="str">"warrior"</span>
-
-<span class="comment"># 8. Check database stats</span>
-<span class="kw">stark&gt; stats</span>
-
-<span class="comment"># 9. Exit and save</span>
-<span class="kw">stark&gt; exit</span></code></pre>
-
-  <h3 style="margin-top:3rem">Transactions Example</h3>
-  <p>Transactions work like a surgeon — begin, do the job, commit. Best used when updating values that must succeed atomically.</p>
-
-  <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="kw">stark&gt; define</span> player { id <span class="str">int</span> hp <span class="str">int</span> level <span class="str">int</span> }
-<span class="kw">stark&gt; add</span> player <span class="num">1</span> id=<span class="num">123</span> hp=<span class="num">100</span> level=<span class="num">0</span>
-
-<span class="comment"># Player won a fight — update atomically</span>
-<span class="kw">stark&gt; begin</span>
-<span class="kw">stark&gt; add</span> player <span class="num">1</span> id=<span class="num">123</span> hp=<span class="num">45</span> level=<span class="num">1</span>
-<span class="kw">stark&gt; commit</span></code></pre>
-</section>
-
-<hr class="divider">
-
-<!-- C++ API -->
-<section aria-labelledby="cpp-heading">
-  <div class="section-tag">C++ Integration</div>
-  <h2 id="cpp-heading">Using STARK in C++</h2>
-  <p>Just add <code>#include &lt;stark.hpp&gt;</code> to your project. The installation step already handles everything else.</p>
-
-  <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment">// main.cpp</span>
+<span class="comment"># Type system</span>
+<span class="kw">stark&gt; define</span> player { name <span class="str">string(32)</span> hp <span class="str">int</span> level <span class="str">int</span> }
+<span class="kw">stark&gt; add</span> player <span class="num">1</span> name=<span class="str">"Aldric"</span> hp=<span class="num">120</span> level=<span class="num">8</span>
+<span class="kw">stark&gt; get</span> player <span class="num">1</span></code></pre>
+    </div>
+    <div class="showcase-block">
+      <div class="showcase-label">C++</div>
+      <pre><code><span class="comment">// Include and open</span>
 <span class="kw">#include</span> <span class="str">&lt;stark.hpp&gt;</span>
+stark::Database db(<span class="str">"save"</span>);
 
-<span class="kw">int</span> main() {
-    <span class="comment">// Open database (creates "save.idx" and "save.dat")</span>
-    stark::Database db(<span class="str">"save"</span>);
+<span class="comment">// Save player data</span>
+db.add(<span class="num">1</span>, <span class="str">"Hero"</span>);
+db.add(<span class="num">2</span>, <span class="str">"100 HP"</span>);
 
-    <span class="comment">// Save player</span>
-    db.add(<span class="num">1</span>, <span class="str">"Hero"</span>);
-    db.add(<span class="num">2</span>, <span class="str">"100 HP"</span>);
+<span class="comment">// Load it instantly</span>
+std::cout &lt;&lt; db.get(<span class="num">1</span>);
 
-    <span class="comment">// Load player</span>
-    std::cout &lt;&lt; db.get(<span class="num">1</span>) &lt;&lt; std::endl;  <span class="comment">// Shows: Hero</span>
-
-    <span class="kw">return</span> <span class="num">0</span>;
-}</code></pre>
-
-  <div class="api-grid">
-    <div class="api-card">
-      <h4>Numeric Keys</h4>
-      <pre><code><span class="cmd">db.add(1, "value");</span>
-<span class="kw">std::string</span> v = db.get(<span class="num">1</span>);
-db.remove(<span class="num">1</span>);
-<span class="kw">if</span> (db.exists(<span class="num">1</span>)) {}</code></pre>
-    </div>
-    <div class="api-card">
-      <h4>String Keys</h4>
-      <pre><code><span class="cmd">db.put_str("key", "value");</span>
-<span class="kw">std::string</span> v = db.get_str(<span class="str">"key"</span>);
-db.remove_str(<span class="str">"key"</span>);
-<span class="kw">if</span> (db.exists_str(<span class="str">"key"</span>)) {}</code></pre>
-    </div>
-    <div class="api-card">
-      <h4>Typed Data</h4>
-      <pre><code><span class="cmd">db.define_type("name", {{"field", TYPE_INT}});</span>
-db.add_typed(<span class="str">"name"</span>, <span class="num">1</span>, <span class="str">"field=100"</span>);
-<span class="kw">std::string</span> v = db.get_typed(<span class="str">"name"</span>, <span class="num">1</span>);
-<span class="kw">auto</span> fields = db.describe_type(<span class="str">"name"</span>);
-db.undefine_type(<span class="str">"name"</span>);</code></pre>
-    </div>
-    <div class="api-card">
-      <h4>Transactions</h4>
-      <pre><code><span class="cmd">db.begin();</span>
-db.commit();
-db.rollback();
-<span class="kw">if</span> (db.in_transaction()) {}</code></pre>
-    </div>
-    <div class="api-card">
-      <h4>Utilities</h4>
-      <pre><code><span class="cmd">db.sync();</span>
-<span class="kw">auto</span> stats = db.stats();
-<span class="kw">std::string</span> err = db.get_last_error();</code></pre>
-    </div>
-    <div class="api-card">
-      <h4>Summary</h4>
-      <p style="margin:0;font-size:.75rem">These are summaries of how to use STARK in C++. More languages and detailed explanations will be added in future updates.</p>
+<span class="comment">// Typed data</span>
+db.define_type(<span class="str">"player"</span>, {
+  Field(<span class="str">"name"</span>, TYPE_STRING, <span class="num">32</span>),
+  Field(<span class="str">"hp"</span>,   TYPE_INT)
+});
+db.add_typed(<span class="str">"player"</span>, <span class="num">1</span>,
+  <span class="str">"name=Hero hp=100"</span>);</code></pre>
     </div>
   </div>
 </section>
 
 <hr class="divider">
 
-<!-- COMPARISON -->
-<section aria-labelledby="compare-heading">
+<!-- STATS BANNER -->
+<section aria-labelledby="stats-heading">
   <div class="section-tag">Benchmarks</div>
-  <h2 id="compare-heading">How STARK Compares</h2>
+  <h2 id="stats-heading">By The Numbers</h2>
 
-  <h3>Core Features</h3>
-  <div class="table-section">
-    <table>
-      <thead>
-        <tr><th>Feature</th><th>STARK</th><th>SQLite</th><th>Redis</th><th>MongoDB</th><th>LevelDB</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Type</td><td class="check">Key-Value</td><td>Relational</td><td>Key-Value</td><td>Document</td><td>Key-Value</td></tr>
-        <tr><td>Language</td><td class="check">C</td><td>C</td><td>C</td><td>C++</td><td>C++</td></tr>
-        <tr><td>Setup Time</td><td class="check">5 min</td><td>5 min</td><td>10 min</td><td>15 min</td><td>5 min</td></tr>
-        <tr><td>Memory Usage</td><td class="check">2–5 MB</td><td>5–10 MB</td><td>5–10 MB</td><td>100+ MB</td><td>5–10 MB</td></tr>
-        <tr><td>File Size</td><td class="check">&lt; 1 MB</td><td>1–5 MB</td><td>N/A (RAM)</td><td>200+ MB</td><td>1–5 MB</td></tr>
-        <tr><td>Learning Curve</td><td class="check">20 min</td><td>1 hour</td><td>30 min</td><td>2 hours</td><td>30 min</td></tr>
-        <tr><td>Transactions</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="cross">❌</td></tr>
-        <tr><td>ACID</td><td class="check">✅</td><td class="check">✅</td><td class="partial">Partial</td><td class="check">✅</td><td class="cross">❌</td></tr>
-        <tr><td>SQL Support</td><td class="cross">❌</td><td class="check">✅</td><td class="cross">❌</td><td class="cross">❌</td><td class="cross">❌</td></tr>
-        <tr><td>Network Support</td><td class="cross">❌</td><td class="cross">❌</td><td class="check">✅</td><td class="check">✅</td><td class="cross">❌</td></tr>
-        <tr><td>Multi-user</td><td class="cross">❌</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="cross">❌</td></tr>
-      </tbody>
-    </table>
+  <div class="stats-strip">
+    <div class="stat-item">
+      <div class="stat-value">0.5<span class="stat-unit"> µs</span></div>
+      <div class="stat-desc">Read latency</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">0.8<span class="stat-unit"> µs</span></div>
+      <div class="stat-desc">Write latency</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">2–5<span class="stat-unit"> MB</span></div>
+      <div class="stat-desc">Memory usage</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">&lt;1<span class="stat-unit"> MB</span></div>
+      <div class="stat-desc">Disk footprint</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">5<span class="stat-unit"> min</span></div>
+      <div class="stat-desc">Setup time</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">20<span class="stat-unit"> min</span></div>
+      <div class="stat-desc">Learning curve</div>
+    </div>
   </div>
-
-  <h3 style="margin-top:3rem">Usage &amp; Developer Experience</h3>
-  <div class="table-section">
-    <table>
-      <thead>
-        <tr><th>Feature</th><th>STARK</th><th>SQLite</th><th>Redis</th><th>MongoDB</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Save Player Data</td><td class="check">✅ 1 line</td><td>5 lines SQL</td><td>2 lines</td><td>3 lines JSON</td></tr>
-        <tr><td>Load in 1 sec</td><td class="check">✅ 0.5 µs</td><td>3 µs</td><td>1 µs</td><td>50 µs</td></tr>
-        <tr><td>Offline Use</td><td class="check">✅ Yes</td><td class="check">✅ Yes</td><td class="cross">❌ No</td><td class="cross">❌ No</td></tr>
-        <tr><td>Simple Syntax</td><td class="check">✅ add(1, "Hero")</td><td>INSERT INTO …</td><td>SET key val</td><td>db.insert()</td></tr>
-        <tr><td>Focus</td><td>Offline apps</td><td>General purpose</td><td>Cache</td><td>Web apps</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <h3 style="margin-top:3rem">Size per 1,000 Records</h3>
-  <div class="table-section">
-    <table>
-      <thead><tr><th>Database</th><th>File Size</th></tr></thead>
-      <tbody>
-        <tr><td>STARK</td><td class="check">~100 KB</td></tr>
-        <tr><td>SQLite</td><td>~150 KB</td></tr>
-        <tr><td>LevelDB</td><td>~120 KB</td></tr>
-        <tr><td>MongoDB</td><td>~2 MB</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <h3 style="margin-top:3rem">Speed Benchmark</h3>
-  <div class="table-section">
-    <table>
-      <thead><tr><th>Operation</th><th>STARK</th><th>SQLite</th><th>Redis</th><th>MongoDB</th></tr></thead>
-      <tbody>
-        <tr><td>Write 1 record</td><td class="check">0.8 µs</td><td>5 µs</td><td>1 µs</td><td>50 µs</td></tr>
-        <tr><td>Read 1 record</td><td class="check">0.5 µs</td><td>3 µs</td><td>0.8 µs</td><td>30 µs</td></tr>
-        <tr><td>Write 1,000 records</td><td class="check">0.8 ms</td><td>5 ms</td><td>1 ms</td><td>50 ms</td></tr>
-        <tr><td>Read 1,000 records</td><td class="check">0.5 ms</td><td>3 ms</td><td>0.8 ms</td><td>30 ms</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <blockquote style="margin-top:2rem">
-    <p>As estimated values show, STARK is faster and leaner than comparable local databases. What makes STARK stand out is its strict focus on core functions — it's designed for specific use cases, and that's what makes it excel at them.</p>
-  </blockquote>
 </section>
 
 <hr class="divider">
 
-<!-- WHY / WHY NOT -->
+<!-- DECISION GUIDE -->
 <section aria-labelledby="decision-heading">
   <div class="section-tag">Decision Guide</div>
-  <h2 id="decision-heading">Should You Use STARK?</h2>
+  <h2 id="decision-heading">Should You Use STARKDB?</h2>
 
   <div class="cards-grid">
     <div class="card pro">
-      <div class="card-title">Choose STARK when...</div>
+      <div class="card-title">Choose STARKDB when...</div>
       <div class="card-row">
-        <div class="card-icon">⚡</div>
+        <div class="card-icon">🎮</div>
         <div class="card-text">
-          <strong>You need simplicity</strong>
-          <span>1 line to save, 1 line to load</span>
+          <strong>You're making a game</strong>
+          <span>Built specifically for game developers</span>
         </div>
       </div>
       <div class="card-row">
-        <div class="card-icon">🪶</div>
+        <div class="card-icon">📱</div>
         <div class="card-text">
-          <strong>You need a tiny footprint</strong>
-          <span>2 MB memory, &lt; 1 MB file size</span>
+          <strong>You're offline-first</strong>
+          <span>No network. No server. Just files.</span>
         </div>
       </div>
       <div class="card-row">
@@ -515,10 +333,10 @@ db.rollback();
         </div>
       </div>
       <div class="card-row">
-        <div class="card-icon">🎮</div>
+        <div class="card-icon">🪶</div>
         <div class="card-text">
-          <strong>You're making a game</strong>
-          <span>Built specifically for game developers</span>
+          <strong>You need tiny footprint</strong>
+          <span>2 MB memory, &lt; 1 MB file size</span>
         </div>
       </div>
       <div class="card-row">
@@ -531,7 +349,7 @@ db.rollback();
     </div>
 
     <div class="card con">
-      <div class="card-title">Skip STARK when...</div>
+      <div class="card-title">Skip STARKDB when...</div>
       <div class="card-row">
         <div class="card-icon">🗃️</div>
         <div class="card-text">
@@ -561,13 +379,30 @@ db.rollback();
         </div>
       </div>
       <div class="card-row">
-        <div class="card-icon">📱</div>
+        <div class="card-icon">🔍</div>
         <div class="card-text">
-          <strong>You need complex queries on mobile</strong>
+          <strong>You need complex queries</strong>
           <span>Use SQLite instead</span>
         </div>
       </div>
     </div>
+  </div>
+
+  <blockquote>
+    <p>STARKDB excels at what it's designed for: simple, fast, local key-value storage. See the <a href="/docs">full documentation</a> to explore all commands and APIs, or <a href="/lab">try the Lab</a> to experiment interactively.</p>
+  </blockquote>
+</section>
+
+<hr class="divider">
+
+<!-- LAB CTA -->
+<section aria-labelledby="lab-heading">
+  <div class="section-tag">Learn</div>
+  <h2 id="lab-heading">Try STARKDB in Your Browser</h2>
+  <p>The interactive lab lets you run STARKDB commands, visualize B-tree operations, explore djb2 hashing, and solve practice challenges — all without installing anything.</p>
+  <div style="margin-top:1.5rem;display:flex;gap:1rem;flex-wrap:wrap">
+    <a href="/lab" class="btn btn-primary">Open the Lab</a>
+    <a href="/installation" class="btn btn-ghost">Install Locally</a>
   </div>
 </section>
 
@@ -587,12 +422,14 @@ db.rollback();
 
 <footer>
   <p>STARK · Open Source · MIT License</p>
-<div class="footer-links">
-      <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a>
-      <a href="/docs">Docs</a>
-      <a href="/installation">Install</a>
-      <a href="mailto:novruzluabdullah03@gmail.com">Contact</a>
-    </div>
+  <div class="footer-links">
+    <a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub</a>
+    <a href="/docs">Docs</a>
+    <a href="/installation">Install</a>
+    <a href="/lab">Lab</a>
+    <a href="/logs">Logs</a>
+    <a href="mailto:novruzluabdullah03@gmail.com">Contact</a>
+  </div>
 </footer>
 
 <script src="js/main.js"></script>
