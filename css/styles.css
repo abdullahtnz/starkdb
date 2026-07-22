@@ -1278,9 +1278,7 @@ footer p{font-size:.65rem;color:var(--border);margin:0;letter-spacing:.1em}
   -webkit-appearance: none;
   margin: 0;
 }
-.btree-control-row input[type="number"] {
-  -moz-appearance: textfield;
-}
+
 .btree-btn {
   font-family: 'Space Mono', monospace;
   font-size: .65rem;
