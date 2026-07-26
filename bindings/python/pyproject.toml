@@ -17,11 +17,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
@@ -31,3 +26,6 @@ requires-python = ">=3.8"
 numpy = ["numpy>=1.20"]
 pandas = ["pandas>=1.3", "numpy>=1.20"]
 all = ["numpy>=1.20", "pandas>=1.3"]
+
+[tool.setuptools.packages.find]
+include = ["starkdb", "starkdb.*"]

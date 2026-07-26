@@ -1,0 +1,4 @@
+include starkdb/__init__.py
+include starkdb/_lib.py
+include starkdb/database.py
+include README.md
