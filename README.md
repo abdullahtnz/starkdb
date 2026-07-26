@@ -251,7 +251,163 @@ This is the most important part, because databases don't just stay there as it i
     std::string err = db.get_last_error();
 
 
-# Quick compariosn table
+<hr>
+
+# Using STARK in Python (NEW v1.1.0)
+
+STARK now supports Python with fully native bindings. Install numpy/pandas for ML features:
+
+    pip install numpy pandas
+
+## Installation
+
+    # Build the C library first
+    cd starkdb
+    mkdir build && cd build
+    cmake .. && make
+
+    # Install Python package
+    cd ../bindings/python
+    pip install -e .
+
+## Basic Python Usage
+
+```python
+import starkdb
+
+# Open database
+db = starkdb.Database("mydb")
+
+# Numeric keys
+db[1] = b"Hello World"
+print(db[1])            # b'Hello World'
+print(db.get_text(1))   # 'Hello World'
+
+# String keys
+db.put_str("player", "Hero")
+print(db.get_str_text("player"))  # Hero
+
+# Dict-like access
+db["score"] = b"100"
+del db["score"]
+
+# Iteration
+for key in db:
+    print(key, db[key])
+
+# Context manager
+with starkdb.Database("mydb") as db:
+    db[1] = b"auto-saved"
+# db closed automatically
+
+# Statistics
+stats = db.stats()
+print(f"Keys: {stats['keys_count']}, Size: {stats['data_size']} bytes")
+
+# Transactions
+db.begin()
+db[1] = b"atomic update"
+db.commit()
+
+db.close()
+```
+
+## ML Features: Binary Array Storage
+
+Store vector embeddings, model inputs, and numeric arrays as contiguous binary blocks:
+
+```python
+import numpy as np
+import starkdb
+
+db = starkdb.Database("ml_data")
+
+# Store float32 embeddings
+embeddings = np.array([0.1, 0.5, -0.3, 0.8], dtype=np.float32)
+db.store_array(1, embeddings)
+
+# Load back (safe copy)
+loaded = db.load_array(1)
+print(loaded)  # [0.1 0.5 -0.3 0.8]
+
+# Zero-copy access (direct memory pointer, no copying)
+zerocopy = db.load_array_zerocopy(1)
+# WARNING: invalid after DB writes!
+
+# Store int32 arrays
+labels = np.array([0, 1, 0, 1], dtype=np.int32)
+db.store_array(2, labels)
+
+# Batch store multiple arrays
+for i in range(100):
+    db.store_array(1000 + i, np.random.randn(768).astype(np.float32))
+
+db.close()
+```
+
+## ML Features: Arrow Column Layout / DataFrame
+
+Store table-like data in Arrow columnar format for direct Pandas/Polars loading:
+
+```python
+import pandas as pd
+import numpy as np
+import starkdb
+
+db = starkdb.Database("datasets")
+
+# Create a DataFrame
+df = pd.DataFrame({
+    "user_id": [1, 2, 3, 4],
+    "name": ["Alice", "Bob", "Charlie", "Diana"],
+    "age": np.array([25, 30, 35, 28], dtype=np.int32),
+    "embedding": [
+        np.random.randn(128).astype(np.float32).tolist()
+        for _ in range(4)
+    ],
+})
+
+# Store as Arrow columns (columnar layout)
+db.store_dataframe("users", df)
+
+# Load back directly into DataFrame
+loaded_df = db.load_dataframe("users")
+print(loaded_df.head())
+
+db.close()
+```
+
+## Python API Reference
+
+| Method | Description |
+|--------|-------------|
+| `db[key] = value` | Insert/update numeric key |
+| `db[key]` | Get numeric key (bytes) |
+| `del db[key]` | Delete numeric key |
+| `key in db` | Check if key exists |
+| `db.get(key)` | Get with optional default |
+| `db.get_text(key)` | Get as string |
+| `db.put_str(key, val)` | Insert string key |
+| `db.get_str(key)` | Get string key |
+| `db.get_str_text(key)` | Get string key as text |
+| `db.delete_str(key)` | Delete string key |
+| `db.exists(key)` | Check numeric key |
+| `db.exists_str(key)` | Check string key |
+| `iter(db)` / `db.items()` | Iterate all keys/values |
+| `db.store_array(key, array)` | Store NumPy array (contiguous binary) |
+| `db.load_array(key)` | Load as NumPy array |
+| `db.load_array_zerocopy(key)` | Load with zero-copy (pointer sharing) |
+| `db.store_dataframe(key, df)` | Store DataFrame as Arrow columns |
+| `db.load_dataframe(key)` | Load Arrow columns into DataFrame |
+| `db.begin()` / `db.commit()` / `db.rollback()` | Transaction control |
+| `db.sync()` | Flush to disk |
+| `db.stats()` | Get statistics dict |
+| `db.put_batch({k:v, ...})` | Atomic batch insert |
+| `db.get_batch([k1, k2])` | Batch get |
+| `db.close()` | Close database |
+
+
+# Quick comparison table
 ## In terms of core features
 
 | Feature         | STARK      | SQLite      | Redis        | MongoDB     | LevelDB     |
@@ -301,13 +457,15 @@ This is the most important part, because databases don't just stay there as it i
 
 # 👍 Why Choose STARK?
 
-| Reason       | Explanation                     |
-|-------------|---------------------------------|
-| Simplest    | 1 line to save, 1 line to load |
-| Smallest    | 2 MB memory, < 1 MB file size  |
-| Fastest     | 0.5 µs reads — instant!        |
-| Game Ready  | Built for game developers      |
-| Free        | Open source, MIT license       |
+| Reason       | Explanation                          |
+|-------------|--------------------------------------|
+| Simplest    | 1 line to save, 1 line to load       |
+| Smallest    | 2 MB memory, < 1 MB file size        |
+| Fastest     | 0.5 µs reads — instant!              |
+| Game Ready  | Built for game developers            |
+| ML Ready    | NumPy zero-copy, Arrow columns, DataFrame support |
+| Python      | Native Python bindings with ctypes   |
+| Free        | Open source, MIT license             |
 
 # 👎 When NOT to Choose STARK
 

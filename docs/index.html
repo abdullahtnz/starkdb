@@ -8,9 +8,9 @@
   <link rel="icon" type="image/png" href="../assets/starklogo.png">
   <link rel="apple-touch-icon" href="../assets/starklogo.png">
 
-  <title>Documentation — STARKDB | CLI &amp; C++ API Reference</title>
-  <meta name="title" content="STARKDB Documentation — CLI & C++ API Reference">
-  <meta name="description" content="Complete STARKDB documentation covering CLI commands, C++ API, ACID properties, B-tree architecture, types, transactions, cursor iteration, result codes, and error handling.">
+  <title>Documentation — STARKDB | CLI, C++, Python &amp; ML API Reference</title>
+  <meta name="title" content="STARKDB Documentation — CLI, C++, Python & ML API Reference">
+  <meta name="description" content="Complete STARKDB documentation covering CLI commands, C++ API, Python bindings, ACID properties, B-tree architecture, types, transactions, cursor iteration, ML array storage, Arrow column layout, DataFrame integration, result codes, and error handling.">
   <meta name="keywords" content="starkdb documentation, starkdb docs, stark cli commands, stark c++ api, key-value database docs, b-tree database guide, embedded database reference, ACID transactions">
   <meta name="author" content="Abdullah Novruzlu">
   <meta name="robots" content="index, follow">
@@ -132,11 +132,18 @@
       </ul>
     </div>
     <div class="sidebar-section">
-      <div class="sidebar-label">Resources</div>
+      <div class="sidebar-label">Python API <span style="color: var(--purple); font-size: 0.65rem; vertical-align: super;">NEW</span></div>
       <ul class="sidebar-links">
-        <li><a href="#benchmarks">Benchmarks</a></li>
-        <li><a href="#decision-guide">Decision Guide</a></li>
-        <li><a href="https://github.com/abdullahtnz/starkdb" target="_blank" rel="noopener">GitHub Repo</a></li>
+        <li><a href="#py-overview">Overview</a></li>
+        <li><a href="#py-lifecycle">Lifecycle</a></li>
+        <li><a href="#py-numeric">Numeric Keys</a></li>
+        <li><a href="#py-string">String Keys</a></li>
+        <li><a href="#py-iteration">Iteration</a></li>
+        <li><a href="#py-typed">Typed Data</a></li>
+        <li><a href="#py-transactions">Transactions</a></li>
+        <li><a href="#py-ml-array">ML: Binary Array</a></li>
+        <li><a href="#py-ml-dataframe">ML: DataFrame</a></li>
+        <li><a href="#py-utilities">Utilities &amp; Stats</a></li>
       </ul>
     </div>
   </aside>
@@ -972,107 +979,539 @@ stark_close(db);</code></pre>
       </div>
     </section>
 
-    <hr class="divider">
+
+        <hr class="divider">
 
     <!-- ================================================================
-         BENCHMARKS
+         PYTHON API — OVERVIEW
          ================================================================ -->
-    <section id="benchmarks">
-      <div class="section-tag">Benchmarks</div>
-      <h2>Performance Benchmarks</h2>
+    <section id="py-overview">
+      <div class="section-tag">Python API</div>
+      <h2>Using STARK in Python</h2>
       <p>
-        STARK is designed for raw speed and minimal resource usage. Here are benchmark comparisons with popular databases.
+        STARK now provides a <strong>complete Python binding</strong> (v1.1.0) using <code>ctypes</code> — no compilation needed.
+        The Python API mirrors the C++ interface and adds ML-ready features: <strong>binary array storage</strong> with
+        NumPy zero-copy access and <strong>Arrow column layout</strong> for Pandas/Polars DataFrames.
       </p>
-      <div class="table-section">
-        <table>
-          <thead><tr><th>Operation</th><th>STARK</th><th>SQLite</th><th>Redis</th><th>MongoDB</th></tr></thead>
-          <tbody>
-            <tr><td>Write 1 record</td><td class="check">0.8 µs</td><td>5 µs</td><td>1 µs</td><td>50 µs</td></tr>
-            <tr><td>Read 1 record</td><td class="check">0.5 µs</td><td>3 µs</td><td>0.8 µs</td><td>30 µs</td></tr>
-            <tr><td>Write 1,000 records</td><td class="check">0.8 ms</td><td>5 ms</td><td>1 ms</td><td>50 ms</td></tr>
-            <tr><td>Read 1,000 records</td><td class="check">0.5 ms</td><td>3 ms</td><td>0.8 ms</td><td>30 ms</td></tr>
-          </tbody>
-        </table>
+
+      <h3>Installation</h3>
+      <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment"># 1. Build the C library first</span>
+<span class="cmd">cd starkdb && mkdir build && cd build</span>
+<span class="cmd">cmake .. && make</span>
+
+<span class="comment"># 2. Install the Python package</span>
+<span class="cmd">cd ../bindings/python</span>
+<span class="cmd">pip install -e .</span>
+
+<span class="comment"># 3. Optional: install ML dependencies</span>
+<span class="cmd">pip install numpy pandas</span></code></pre>
+
+      <div class="note">
+        <strong>Set STARK_LIB_PATH:</strong> If the library is not in a standard path, set <code>export STARK_LIB_PATH=/path/to/libstark.so</code>.
       </div>
+    </section>
+
+    <!-- ================================================================
+         PYTHON API — LIFECYCLE
+         ================================================================ -->
+    <section id="py-lifecycle">
+      <h3>Lifecycle — Opening, Closing, and Context Manager</h3>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Constructor and Close</h4>
+          <pre><code><span class="comment"># Open existing or create new</span>
+db = starkdb.Database(<span class="str">"mydb"</span>)
+
+<span class="comment"># Creates mydb.idx + mydb.dat</span>
+
+<span class="comment"># Close (flushes to disk)</span>
+db.close()</code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Context Manager</h4>
+          <pre><code><span class="comment"># Auto-closes on exit</span>
+<span class="kw">with</span> starkdb.Database(<span class="str">"mydb"</span>) <span class="kw">as</span> db:
+    db.put(<span class="num">1</span>, <span class="str">b"auto-saved"</span>)
+    <span class="comment"># db.close() called automatically</span></code></pre>
+        </div>
+      </div>
+
       <p>
-        STARK's B-tree implementation provides O(log n) lookups with minimal disk I/O, making it ideal for game save systems and local storage.
+        The database automatically calls <code>sync()</code> and <code>stark_close()</code> when the context manager exits or <code>close()</code> is called.
+        If you need explicit control, call <code>db.sync()</code> to flush changes to disk immediately.
       </p>
     </section>
 
     <!-- ================================================================
-         DECISION GUIDE
+         PYTHON API — NUMERIC KEYS
          ================================================================ -->
-    <section id="decision-guide">
-      <div class="section-tag">Decision Guide</div>
-      <h2>Should You Use STARK?</h2>
-      <div class="cards-grid">
-        <div class="card pro">
-          <div class="card-title">Choose STARK when...</div>
-          <div class="card-row">
-            <div class="card-icon">⚡</div>
-            <div class="card-text">
-              <strong>You need simplicity</strong>
-              <span>1 line to save, 1 line to load</span>
-            </div>
-          </div>
-          <div class="card-row">
-            <div class="card-icon">🪶</div>
-            <div class="card-text">
-              <strong>You need a tiny footprint</strong>
-              <span>2 MB memory, &lt; 1 MB file size</span>
-            </div>
-          </div>
-          <div class="card-row">
-            <div class="card-icon">🚀</div>
-            <div class="card-text">
-              <strong>You need raw speed</strong>
-              <span>0.5 µs reads — effectively instant</span>
-            </div>
-          </div>
-          <div class="card-row">
-            <div class="card-icon">🎮</div>
-            <div class="card-text">
-              <strong>You're making a game</strong>
-              <span>Built specifically for game developers</span>
-            </div>
-          </div>
-          <div class="card-row">
-            <div class="card-icon">🆓</div>
-            <div class="card-text">
-              <strong>You want it free</strong>
-              <span>Open source, MIT license</span>
-            </div>
-          </div>
+    <section id="py-numeric">
+      <h3>Numeric Key Methods</h3>
+
+      <p>
+        Numeric keys are 32-bit unsigned integers. Values are <code>bytes</code>. The API supports dict-style syntax.
+      </p>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Dict-Style Access</h4>
+          <pre><code><span class="comment"># Insert/update</span>
+db[<span class="num">1</span>] = <span class="str">b"Hero"</span>
+
+<span class="comment"># Get by key</span>
+val = db[<span class="num">1</span>]
+<span class="comment"># b'Hero'</span>
+
+<span class="comment"># Delete</span>
+<span class="kw">del</span> db[<span class="num">1</span>]
+
+<span class="comment"># Check existence</span>
+<span class="kw">if</span> <span class="num">1</span> <span class="kw">in</span> db:
+    <span class="comment"># exists</span></code></pre>
         </div>
-        <div class="card con">
-          <div class="card-title">Skip STARK when...</div>
-          <div class="card-row">
-            <div class="card-icon">🗃️</div>
-            <div class="card-text">
-              <strong>You need SQL queries</strong>
-              <span>Use SQLite instead</span>
-            </div>
-          </div>
-          <div class="card-row">
-            <div class="card-icon">🌐</div>
-            <div class="card-text">
-              <strong>You need network access</strong>
-              <span>Use Redis or MongoDB instead</span>
-            </div>
-          </div>
-          <div class="card-row">
-            <div class="card-icon">👥</div>
-            <div class="card-text">
-              <strong>You have multiple users</strong>
-              <span>Use PostgreSQL instead</span>
-            </div>
-          </div>
+        <div class="api-card">
+          <h4>Method-Based Access</h4>
+          <pre><code><span class="comment"># Insert/update</span>
+db.put(<span class="num">1</span>, <span class="str">b"Hero"</span>)
+db.put(<span class="num">2</span>, <span class="str">"variable"</span>.encode())
+
+<span class="comment"># Get as bytes</span>
+val = db.get(<span class="num">1</span>)
+
+<span class="comment"># Get as string</span>
+text = db.get_text(<span class="num">1</span>)
+
+<span class="comment"># Delete (returns True if existed)</span>
+db.delete(<span class="num">1</span>)
+
+<span class="comment"># Check existence</span>
+db.exists(<span class="num">1</span>)</code></pre>
         </div>
       </div>
+
+      <h4>Batch Operations</h4>
+      <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment"># Insert multiple keys atomically</span>
+db.put_batch({<span class="num">1</span>: <span class="str">b"A"</span>, <span class="num">2</span>: <span class="str">b"B"</span>, <span class="num">3</span>: <span class="str">b"C"</span>})
+
+<span class="comment"># Get multiple keys at once</span>
+results = db.get_batch([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">999</span>])
+<span class="comment"># Returns {1: b'A', 2: b'B', 3: b'C'}</span></code></pre>
+    </section>
+
+    <!-- ================================================================
+         PYTHON API — STRING KEYS
+         ================================================================ -->
+    <section id="py-string">
+      <h3>String Key Methods</h3>
+
+      <p>
+        String keys use text-based lookups. Internally, keys are hashed using the djb2 algorithm and stored in the B-tree.
+      </p>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Put &amp; Get</h4>
+          <pre><code><span class="comment"># Insert or update</span>
+db.put_str(<span class="str">"player"</span>, <span class="str">"Hero"</span>)
+db.put_str(<span class="str">"theme"</span>, <span class="str">"dark"</span>)
+
+<span class="comment"># Get as bytes</span>
+val = db.get_str(<span class="str">"player"</span>)
+<span class="comment"># b'Hero'</span>
+
+<span class="comment"># Get as string</span>
+text = db.get_str_text(<span class="str">"player"</span>)
+<span class="comment"># 'Hero'</span></code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Remove &amp; Exists</h4>
+          <pre><code><span class="comment"># Delete string key</span>
+db.delete_str(<span class="str">"theme"</span>)
+
+<span class="comment"># Check existence</span>
+<span class="kw">if</span> db.exists_str(<span class="str">"player"</span>):
+    <span class="comment"># key exists</span></code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================
+         PYTHON API — ITERATION
+         ================================================================ -->
+    <section id="py-iteration">
+      <h3>Iteration — Scanning All Keys</h3>
+
+      <p>
+        The Python API provides full iteration over the B-tree. Keys are returned in ascending order.
+      </p>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Iterate Keys</h4>
+          <pre><code><span class="comment"># Iterate over all keys</span>
+<span class="kw">for</span> key <span class="kw">in</span> db:
+    print(key)</code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Iterate Key-Value Pairs</h4>
+          <pre><code><span class="comment"># Iterate over (key, value) pairs</span>
+<span class="kw">for</span> key, value <span class="kw">in</span> db.items():
+    print(key, value)</code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Get All Keys or Values</h4>
+          <pre><code><span class="comment"># Get all keys as a list</span>
+keys = db.keys()
+
+<span class="comment"># Get all values as a list</span>
+values = db.values()
+
+<span class="comment"># Count keys</span>
+count = db.count()</code></pre>
+        </div>
+      </div>
+
+      <p>
+        Internally, this uses the B-tree cursor to traverse the tree in sorted order. The C cursor API
+        (<code>stark_cursor_create</code>, <code>stark_cursor_first</code>, <code>stark_cursor_next</code>)
+        is also available if you need finer control.
+      </p>
+    </section>
+
+    <!-- ================================================================
+         PYTHON API — TYPED DATA
+         ================================================================ -->
+    <section id="py-typed">
+      <h3>Typed Data — User-Defined Schemas</h3>
+
+      <p>
+        Define structured types with <code>int</code> and <code>string</code> fields, then add/get records
+        using field=value syntax — just like the CLI and C++ API.
+      </p>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Define &amp; Undefine</h4>
+          <pre><code><span class="comment"># Define a player type</span>
+db.define_type(<span class="str">"player"</span>, [
+    {<span class="str">"name"</span>: <span class="str">"id"</span>,    <span class="str">"type"</span>: <span class="num">1</span>, <span class="str">"size"</span>: <span class="num">4</span>},
+    {<span class="str">"name"</span>: <span class="str">"hp"</span>,    <span class="str">"type"</span>: <span class="num">1</span>, <span class="str">"size"</span>: <span class="num">4</span>},
+    {<span class="str">"name"</span>: <span class="str">"level"</span>, <span class="str">"type"</span>: <span class="num">1</span>, <span class="str">"size"</span>: <span class="num">4</span>},
+])
+
+<span class="comment"># Remove a type</span>
+db.undefine_type(<span class="str">"player"</span>)</code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Add, Get &amp; Describe</h4>
+          <pre><code><span class="comment"># Add a typed record</span>
+db.add_typed(<span class="str">"player"</span>, <span class="num">1</span>,
+    <span class="str">"id=100 hp=50 level=10"</span>)
+
+<span class="comment"># Get typed record</span>
+result = db.get_typed(<span class="str">"player"</span>, <span class="num">1</span>)
+<span class="comment"># 'id=100 hp=50 level=10'</span></code></pre>
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>Field type constants:</strong> <code>1</code> = TYPE_INT (4 bytes), <code>2</code> = TYPE_STRING (requires a <code>"size"</code> field).
+        For strings, pass <code>"size": 64</code> or any buffer size you need.
+      </div>
+    </section>
+
+    <!-- ================================================================
+         PYTHON API — TRANSACTIONS
+         ================================================================ -->
+    <section id="py-transactions">
+      <h3>Transaction Methods</h3>
+      <p>
+        Transactions group multiple operations into an atomic unit. All writes are buffered until
+        <code>commit()</code>, or discarded on <code>rollback()</code>.
+      </p>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Transaction Control</h4>
+          <pre><code><span class="comment"># Start transaction</span>
+db.begin()
+
+<span class="comment"># Make changes</span>
+db.put(<span class="num">1</span>, <span class="str">b"updated"</span>)
+db.put_str(<span class="str">"key"</span>, <span class="str">"val"</span>)
+
+<span class="comment"># Commit (atomic write)</span>
+db.commit()
+
+<span class="comment"># Or rollback (discard)</span>
+<span class="comment"># db.rollback()</span></code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Transaction State</h4>
+          <pre><code><span class="comment"># Check if in transaction</span>
+<span class="kw">if</span> db.in_transaction():
+    print(<span class="str">"inside transaction"</span>)</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================
+         PYTHON API — ML BINARY ARRAY
+         ================================================================ -->
+    <section id="py-ml-array">
+      <div class="section-tag">ML Feature</div>
+      <h3>Binary Array Storage — NumPy Zero-Copy</h3>
+
+      <p>
+        <strong>Direct Binary Storage:</strong> Arrays are stored as contiguous byte blocks with no JSON, string, or formatting overhead.
+        This enables sub-microsecond reads and direct memory sharing with ML libraries.
+      </p>
+
+      <h4>How It Works</h4>
+      <p>
+        When you call <code>store_array()</code>, the array's raw bytes are written to the data file
+        as a continuous block with a small header (dtype + count + element size).
+        When you call <code>load_array_zerocopy()</code>, it returns the database's in-memory page address
+        directly — NumPy wraps a view around it without copying.
+      </p>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Store &amp; Load</h4>
+          <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> starkdb
+
+db = starkdb.Database(<span class="str">"ml_data"</span>)
+
+<span class="comment"># Store float32 embeddings</span>
+embeddings = np.array(
+    [<span class="num">0.1</span>, <span class="num">0.5</span>, <span class="num">-0.3</span>, <span class="num">0.8</span>],
+    dtype=np.float32)
+db.store_array(<span class="num">1</span>, embeddings)
+
+<span class="comment"># Load back (safe copy)</span>
+loaded = db.load_array(<span class="num">1</span>)
+
+<span class="comment"># Store int32 labels</span>
+labels = np.array(
+    [<span class="num">0</span>, <span class="num">1</span>, <span class="num">0</span>, <span class="num">1</span>],
+    dtype=np.int32)
+db.store_array(<span class="num">2</span>, labels)
+
+db.close()</code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Zero-Copy Access</h4>
+          <pre><code><span class="comment"># Zero-copy — no memory copy!</span>
+<span class="comment"># Returns a numpy array backed by DB memory</span>
+<span class="comment"># WARNING: Pointer invalid after DB writes</span>
+fast = db.load_array_zerocopy(<span class="num">1</span>)
+
+<span class="comment"># Use directly in ML</span>
+prediction = model.predict(fast)
+
+<span class="comment"># Copy only when needed</span>
+safe_copy = fast.copy()</code></pre>
+        </div>
+      </div>
+
+      <h4>Why This Matters for ML</h4>
+      <ul style="list-style: disc; padding-left: 1.5rem; margin: 1rem 0;">
+        <li><strong>Direct Binary Storage:</strong> Vector embeddings and model inputs are stored as raw byte arrays — no parsing overhead</li>
+        <li><strong>Zero-Copy Buffer Export:</strong> PyTorch, TensorFlow, and JAX can read millions of numbers per second directly from database memory</li>
+        <li><strong>Batch Processing:</strong> Store 1000s of embedding vectors and load them instantly for training loops</li>
+      </ul>
+
+      <pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy code">COPY</button><code><span class="comment"># Store 1000 embedding vectors (768-dim each) for batch ML</span>
+db = starkdb.Database(<span class="str">"vectors"</span>)
+<span class="kw">for</span> i <span class="kw">in</span> range(<span class="num">1000</span>):
+    vec = np.random.randn(<span class="num">768</span>).astype(np.float32)
+    db.store_array(<span class="num">1000</span> + i, vec)
+
+<span class="comment"># Load one embedding with zero-copy</span>
+vec = db.load_array_zerocopy(<span class="num">1500</span>)
+<span class="comment"># shape (768,) float32 — zero copy</span>
+db.close()</code></pre>
+    </section>
+
+    <!-- ================================================================
+         PYTHON API — ML DATAFRAME (ARROW COLUMNS)
+         ================================================================ -->
+    <section id="py-ml-dataframe">
+      <div class="section-tag">ML Feature</div>
+      <h3>Arrow Column Layout — DataFrame Integration</h3>
+
+      <p>
+        <strong>Arrow Column Layout:</strong> Table-like data is stored column-by-column (not row-by-row),
+        following Apache Arrow's columnar format. This allows Pandas and Polars to reconstruct DataFrames
+        instantly without reformatting.
+      </p>
+
+      <h4>How It Works</h4>
+      <p>
+        When you call <code>store_dataframe()</code>, STARK stores:
+      </p>
+      <ol style="list-style: decimal; padding-left: 1.5rem; margin: 1rem 0;">
+        <li><strong>Schema metadata</strong> — JSON describing column names and data types</li>
+        <li><strong>Column data</strong> — Each column stored as a contiguous binary block</li>
+      </ol>
+      <p>
+        When you call <code>load_dataframe()</code>, STARK reads the schema, loads each column's data,
+        and reconstructs the DataFrame column-by-column — matching Arrow's zero-copy philosophy.
+      </p>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Store DataFrame</h4>
+          <pre><code><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> starkdb
+
+db = starkdb.Database(<span class="str">"datasets"</span>)
+
+<span class="comment"># Create a DataFrame</span>
+df = pd.DataFrame({
+    <span class="str">"name"</span>: [<span class="str">"Alice"</span>,
+              <span class="str">"Bob"</span>,
+              <span class="str">"Charlie"</span>],
+    <span class="str">"age"</span>: np.array(
+        [<span class="num">25</span>, <span class="num">30</span>, <span class="num">35</span>],
+        dtype=np.int32),
+    <span class="str">"score"</span>: np.array(
+        [<span class="num">95.5</span>, <span class="num">87.2</span>, <span class="num">91.8</span>],
+        dtype=np.float32),
+})
+
+<span class="comment"># Store as Arrow columns</span>
+db.store_dataframe(<span class="str">"users"</span>, df)
+
+db.close()</code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Load DataFrame</h4>
+          <pre><code><span class="comment"># Load back as DataFrame</span>
+loaded_df = db.load_dataframe(
+    <span class="str">"users"</span>)
+
+print(loaded_df.head())
+<span class="comment">#     name  age  score</span>
+<span class="comment"># 0  Alice   25   95.5</span>
+<span class="comment"># 1    Bob   30   87.2</span>
+<span class="comment"># 2 Charlie  35   91.8</span>
+
+<span class="comment"># Directly usable with pandas:</span>
+mean_score = loaded_df[
+    <span class="str">"score"</span>].mean()
+print(mean_score)
+<span class="comment"># 91.5</span>
+
+db.close()</code></pre>
+        </div>
+      </div>
+
+      <blockquote>
+        <p>
+          <strong>Arrow compatibility:</strong> While STARK does not output standard Arrow IPC format files,
+          the column-oriented storage layout is compatible with Arrow's zero-copy philosophy.
+          Each column is stored as a typed contiguous buffer with schema metadata,
+          enabling Pandas/Polars to reconstruct DataFrames with minimal overhead.
+        </p>
+      </blockquote>
+    </section>
+
+    <!-- ================================================================
+         PYTHON API — UTILITIES & STATS
+         ================================================================ -->
+    <section id="py-utilities">
+      <h3>Utilities, Statistics &amp; Error Handling</h3>
+
+      <div class="api-grid">
+        <div class="api-card">
+          <h4>Sync &amp; Stats</h4>
+          <pre><code><span class="comment"># Flush to disk</span>
+db.sync()
+
+<span class="comment"># Get database statistics</span>
+stats = db.stats()
+print(stats)
+<span class="comment"># {'keys_count': 10, 'btree_height': 1,</span>
+<span class="comment">#  'data_size': 1024, 'page_count': 2}</span></code></pre>
+        </div>
+        <div class="api-card">
+          <h4>Error &amp; Exceptions</h4>
+          <pre><code><span class="comment"># Get last error message</span>
+err = db.error()
+
+<span class="comment"># Exception classes:</span>
+<span class="comment">#   StarkDBError — generic error</span>
+<span class="comment">#   StarkDBNotFound — key not found</span>
+<span class="comment">#   StarkDBFull — storage full</span>
+<span class="comment">#   StarkDBClosed — database closed</span></code></pre>
+        </div>
+      </div>
+
+      <h4>Complete API Reference</h4>
+      <div class="table-section">
+        <table>
+          <thead><tr><th>Method</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>db[key] = value</code></td><td>Insert or update numeric key (dict-style)</td></tr>
+            <tr><td><code>db[key]</code></td><td>Get numeric key value (bytes)</td></tr>
+            <tr><td><code>del db[key]</code></td><td>Delete numeric key</td></tr>
+            <tr><td><code>key in db</code></td><td>Check if key exists</td></tr>
+            <tr><td><code>db.put(key, value)</code></td><td>Insert or update numeric key</td></tr>
+            <tr><td><code>db.get(key)</code></td><td>Get numeric key (returns bytes)</td></tr>
+            <tr><td><code>db.get_text(key)</code></td><td>Get numeric key as string</td></tr>
+            <tr><td><code>db.delete(key)</code></td><td>Delete numeric key (returns bool)</td></tr>
+            <tr><td><code>db.exists(key)</code></td><td>Check if numeric key exists</td></tr>
+            <tr><td><code>db.put_str(key, val)</code></td><td>Insert or update string key</td></tr>
+            <tr><td><code>db.get_str(key)</code></td><td>Get string key (returns bytes)</td></tr>
+            <tr><td><code>db.get_str_text(key)</code></td><td>Get string key as string</td></tr>
+            <tr><td><code>db.delete_str(key)</code></td><td>Delete string key (returns bool)</td></tr>
+            <tr><td><code>db.exists_str(key)</code></td><td>Check if string key exists</td></tr>
+            <tr><td><code>iter(db)</code></td><td>Iterate all keys in order</td></tr>
+            <tr><td><code>db.items()</code></td><td>Iterate (key, value) pairs</td></tr>
+            <tr><td><code>db.keys()</code></td><td>Get all keys as list</td></tr>
+            <tr><td><code>db.values()</code></td><td>Get all values as list</td></tr>
+            <tr><td><code>db.count()</code></td><td>Number of keys</td></tr>
+            <tr><td><code>db.store_array(key, arr)</code></td><td>Store NumPy array (contiguous binary)</td></tr>
+            <tr><td><code>db.load_array(key)</code></td><td>Load as NumPy array (safe copy)</td></tr>
+            <tr><td><code>db.load_array_zerocopy(key)</code></td><td>Zero-copy NumPy (direct pointer)</td></tr>
+            <tr><td><code>db.store_dataframe(key, df)</code></td><td>Store DataFrame as Arrow columns</td></tr>
+            <tr><td><code>db.load_dataframe(key)</code></td><td>Load Arrow columns into DataFrame</td></tr>
+            <tr><td><code>db.put_batch({k: v, ...})</code></td><td>Atomic batch insert</td></tr>
+            <tr><td><code>db.get_batch([k, ...])</code></td><td>Batch get</td></tr>
+            <tr><td><code>db.define_type(name, fields)</code></td><td>Define typed schema</td></tr>
+            <tr><td><code>db.add_typed(type, key, fields)</code></td><td>Add typed record</td></tr>
+            <tr><td><code>db.get_typed(type, key)</code></td><td>Get typed record</td></tr>
+            <tr><td><code>db.undefine_type(name)</code></td><td>Remove type definition</td></tr>
+            <tr><td><code>db.begin()</code></td><td>Start transaction</td></tr>
+            <tr><td><code>db.commit()</code></td><td>Commit transaction</td></tr>
+            <tr><td><code>db.rollback()</code></td><td>Rollback transaction</td></tr>
+            <tr><td><code>db.in_transaction()</code></td><td>Check if in transaction</td></tr>
+            <tr><td><code>db.sync()</code></td><td>Flush to disk</td></tr>
+            <tr><td><code>db.stats()</code></td><td>Get statistics dict</td></tr>
+            <tr><td><code>db.error()</code></td><td>Get last error message</td></tr>
+            <tr><td><code>db.close()</code></td><td>Close database</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top: 2rem;">Architecture Notes</h3>
+      <ul style="list-style: disc; padding-left: 1.5rem; margin: 1rem 0;">
+        <li><strong>Direct Binary Storage:</strong> Arrays stored as contiguous bytes (no JSON/string overhead). Perfect for ML vector embeddings.</li>
+        <li><strong>Zero-Copy Buffer Export:</strong> <code>load_array_zerocopy()</code> returns a NumPy array backed by the DB's memory — PyTorch/TensorFlow can read directly from disk cache.</li>
+        <li><strong>Arrow Column Layout:</strong> Data stored column-by-column with schema headers, ready for Pandas/Polars DataFrame reconstruction.</li>
+        <li><strong>ctypes Implementation:</strong> No Python C extension compilation — pure Python FFI through ctypes.</li>
+      </ul>
     </section>
 
   </div>
 </div>
+
+
+  
 
 <footer>
   <p>STARK · Open Source · MIT License</p>

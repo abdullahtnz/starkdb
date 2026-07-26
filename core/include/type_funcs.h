@@ -16,4 +16,8 @@ stark_result_t type_serialize(FieldDef* fields, uint32_t field_count,
 stark_result_t type_deserialize(FieldDef* fields, uint32_t field_count,
                                 const void* buffer, char* output, size_t output_size);
 
+// Field parsing
+stark_result_t type_parse_fields(const char* input, FieldDef** fields,
+                                  uint32_t* field_count);
+
 #endif

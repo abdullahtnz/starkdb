@@ -117,8 +117,8 @@ DB_Result pager_flush_page(Pager *pager, page_num_t page_num) {
         LeafNode* leaf = (LeafNode*)pager->pages[page_num];
         printf("      Page 0 has %u cells\n", leaf->num_cells);
         for (int i = 0; i < leaf->num_cells; i++) {
-            printf("        Cell %d: key=%u, value=%u\n", 
-                   i, leaf->keys[i], leaf->values[i]);
+            printf("        Cell %d: key=%u, value=%lu\n",
+                   i, leaf->keys[i], (unsigned long)leaf->values[i]);
         }
     }
     

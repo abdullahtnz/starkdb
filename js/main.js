@@ -180,22 +180,37 @@
 
     if (!sectionMap.length) return;
 
+    function updateActive() {
+      var scrollY = window.scrollY + 120;
+      var current = sectionMap[0];
+      for (var i = 0; i < sectionMap.length; i++) {
+        if (sectionMap[i].el.offsetTop <= scrollY) {
+          current = sectionMap[i];
+        }
+      }
+      sidebarLinks.forEach(function (l) { l.classList.remove('active'); });
+      if (current) current.link.classList.add('active');
+    }
+
+    // Run on scroll (throttled)
     var ticking = false;
     window.addEventListener('scroll', function () {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(function () {
-        var scrollY = window.scrollY + 120;
-        var current = sectionMap[0];
-        for (var i = 0; i < sectionMap.length; i++) {
-          if (sectionMap[i].el.offsetTop <= scrollY) {
-            current = sectionMap[i];
-          }
-        }
-        sidebarLinks.forEach(function (l) { l.classList.remove('active'); });
-        if (current) current.link.classList.add('active');
+        updateActive();
         ticking = false;
       });
+    });
+
+    // Also run immediately, and whenever any anchor link is clicked
+    updateActive();
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (link) {
+        // Small delay to let smooth scroll start, then update
+        setTimeout(updateActive, 50);
+      }
     });
   }
 

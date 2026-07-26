@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "stark.h"
+#include "type_funcs.h"
 
 void print_help() {
 // Colors
