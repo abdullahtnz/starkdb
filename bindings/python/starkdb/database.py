@@ -418,11 +418,18 @@ class Database:
         col_sizes = []
 
         for name in column_names:
-            col = np.ascontiguousarray(np.array(data[name]))
-            columns.append(col.tobytes())
-            col_sizes.append(len(col.tobytes()))
-            dtype_name = str(col.dtype)
-            schema_parts.append(f'"{name}": "{dtype_name}"')
+            raw_col = data[name]
+            if isinstance(raw_col[0], str):
+                joined = '\0'.join(str(v) for v in raw_col).encode('utf-8')
+                columns.append(joined)
+                col_sizes.append(len(joined))
+                schema_parts.append(f'"{name}": "str"')
+            else:
+                col = np.ascontiguousarray(np.array(raw_col))
+                columns.append(col.tobytes())
+                col_sizes.append(len(col.tobytes()))
+                dtype_name = str(col.dtype)
+                schema_parts.append(f'"{name}": "{dtype_name}"')
 
         schema_json = "{" + ", ".join(schema_parts) + "}"
 
@@ -492,15 +499,35 @@ class Database:
                 continue
 
             dtype_str = schema.get(col_name, "float64")
-            np_dtype = np.float64
-            if "int64" in dtype_str: np_dtype = np.int64
-            elif "int32" in dtype_str: np_dtype = np.int32
-            elif "float32" in dtype_str: np_dtype = np.float32
-            elif "uint8" in dtype_str: np_dtype = np.uint8
+            is_string = any(t in str(dtype_str) for t in ["U", "str", "object", "byt"])
+            is_int = any(t in str(dtype_str) for t in ["int64", "int32", "int16", "int8", "uint"])
 
-            buf = ctypes.cast(col_ptr, ctypes.POINTER(ctypes.c_uint8 * col_size))
-            arr = np.frombuffer(buf.contents, dtype=np_dtype, count=nr)
-            columns_data[col_name] = arr.copy()
+            if is_string:
+                raw = ctypes.cast(col_ptr, ctypes.POINTER(ctypes.c_uint8 * col_size))
+                full = bytes(raw.contents)
+                strs = full.split(b'\x00')
+                strs = [s.decode("utf-8", errors="replace") for s in strs]
+                # Ensure exactly nr elements
+                if len(strs) > nr:
+                    strs = strs[:nr]
+                elif len(strs) < nr:
+                    strs.extend([''] * (nr - len(strs)))
+                columns_data[col_name] = strs
+            elif is_int:
+                np_dtype = np.int64
+                if "int32" in str(dtype_str): np_dtype = np.int32
+                elif "int16" in str(dtype_str): np_dtype = np.int16
+                elif "int8" in str(dtype_str): np_dtype = np.int8
+                elif "uint" in str(dtype_str) and "8" in str(dtype_str): np_dtype = np.uint8
+                buf = ctypes.cast(col_ptr, ctypes.POINTER(ctypes.c_uint8 * col_size))
+                arr = np.frombuffer(buf.contents, dtype=np_dtype, count=nr)
+                columns_data[col_name] = arr.copy()
+            else:
+                np_dtype = np.float64
+                if "float32" in str(dtype_str): np_dtype = np.float32
+                buf = ctypes.cast(col_ptr, ctypes.POINTER(ctypes.c_uint8 * col_size))
+                arr = np.frombuffer(buf.contents, dtype=np_dtype, count=nr)
+                columns_data[col_name] = arr.copy()
 
         self._lib.stark_free_columns(ctypes.byref(out))
 
