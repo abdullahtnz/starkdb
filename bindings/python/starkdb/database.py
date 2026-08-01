@@ -641,11 +641,13 @@ class Database:
             ]
 
         c_fields = (FieldDef * len(fields))()
+        offset = 0
         for i, f in enumerate(fields):
             c_fields[i].name = f["name"].encode("utf-8")[:31]
             c_fields[i].type = f.get("type", 1)
-            c_fields[i].size = f.get("size", 4)
-            c_fields[i].offset = 0
+            c_fields[i].size = 4 if c_fields[i].type == 1 else f.get("size", 4)
+            c_fields[i].offset = offset
+            offset += c_fields[i].size
 
         result = self._lib.stark_define_type(
             self._handle, name.encode("utf-8"), c_fields, len(fields)
