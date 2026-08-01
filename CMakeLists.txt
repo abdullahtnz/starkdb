@@ -18,6 +18,10 @@ set(CORE_SOURCES
 
 # Create shared library
 add_library(stark SHARED ${CORE_SOURCES})
+if(ENABLE_ASAN)
+    target_compile_options(stark PRIVATE -fsanitize=address -g -O0)
+    target_link_options(stark PRIVATE -fsanitize=address)
+endif()
 
 # Include directories for the library
 target_include_directories(stark 
@@ -42,6 +46,10 @@ target_link_libraries(stark_cli PRIVATE stark)
 
 # Include the public API header for CLI
 target_include_directories(stark_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
+if(ENABLE_ASAN)
+    target_compile_options(stark_cli PRIVATE -fsanitize=address -g -O0)
+    target_link_options(stark_cli PRIVATE -fsanitize=address)
+endif()
 
 
 

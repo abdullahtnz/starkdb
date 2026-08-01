@@ -1,4 +1,4 @@
-# Introducing STARK v.1.1.0
+# Introducing STARK v.1.2.0
 
 
 # What is STARK ?

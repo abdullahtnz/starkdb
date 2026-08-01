@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define PAGE_SIZE 4096          // 4KB pages - standard filesystem block
-#define TABLE_MAX_PAGES 100      // Max pages in memory
+#define PAGE_SIZE 65536         // 64KB pages - supports large ML arrays
+#define TABLE_MAX_PAGES 200      // Max pages in memory
 #define INVALID_PAGE UINT32_MAX
 
 // Common return codes

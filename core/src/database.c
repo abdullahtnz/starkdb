@@ -80,20 +80,14 @@ DB_Result db_close(Database *db) {
 }
 
 DB_Result db_insert(Database *db, uint32_t key, const void *data, size_t size) {
-    printf("Debug: Inserting key %u with data size %zu\n", key, size);
-
     data_addr_t addr;
     DB_Result result = storage_write(db->storage, data, size, &addr);
     if (result != DB_SUCCESS) {
-        printf("Debug: storage_write failed with code %d\n", result);
         return result;
     }
 
-    printf("Debug: Stored at addr 0x%016lX\n", (unsigned long)addr);
-
     result = btree_insert(db->index, key, addr);
     if (result != DB_SUCCESS) {
-        printf("Debug: btree_insert failed with code %d\n", result);
     }
 
     db->total_keys++;
@@ -102,19 +96,13 @@ DB_Result db_insert(Database *db, uint32_t key, const void *data, size_t size) {
 }
 
 DB_Result db_find(Database *db, uint32_t key, void *buffer, size_t *size) {
-    printf("Debug: db_find(key=%u)\n", key);
-
     uint64_t addr;
     DB_Result result = btree_find(db->index, key, &addr);
     if (result != DB_SUCCESS) {
-        printf("Debug: btree_find failed with code %d\n", result);
         return result;
     }
 
-    printf("Debug: btree_find returned addr=0x%016lX\n", (unsigned long)addr);
-
     result = storage_read(db->storage, addr, buffer, size);
-    printf("Debug: storage_read returned %d\n", result);
 
     return result;
 }
@@ -122,20 +110,16 @@ DB_Result db_find(Database *db, uint32_t key, void *buffer, size_t *size) {
 DB_Result db_delete(Database *db, uint32_t key) {
     if (!db || !db->index) return DB_ERROR;
 
-    printf("Debug: db_delete(key=%u)\n", key);
-
     uint64_t addr;
     DB_Result result = btree_find(db->index, key, &addr);
 
     if (result == DB_SUCCESS) {
         storage_delete(db->storage, addr);
-        printf("Debug: Deleted storage at addr 0x%016lX\n", (unsigned long)addr);
     }
 
     result = btree_delete(db->index, key);
 
     if (result == DB_SUCCESS) {
-        printf("Deleted key %u\n", key);
         if (db->total_keys > 0) db->total_keys--;
     }
 
@@ -211,7 +195,7 @@ DB_Result db_store_columns(Database *db, const char *col_key, const char *schema
     if (!db || !col_key || !schema || !columns || !col_sizes) return DB_ERROR;
 
     size_t schema_len = strlen(schema) + 1;
-    size_t header_size = sizeof(uint32_t) + sizeof(size_t) + schema_len + sizeof(size_t) * num_cols;
+    size_t header_size = sizeof(uint32_t) + sizeof(size_t) * 2 + schema_len + sizeof(size_t) * num_cols;
 
     uint32_t magic = 0x4152524F; /* "ARRO" */
     uint8_t *packed = malloc(header_size);

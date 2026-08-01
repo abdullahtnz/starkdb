@@ -42,7 +42,6 @@ STARK_API void stark_close(stark_db_t* db) {
     }
     free(db->path);
     free(db);
-    printf("Database synced and closed.\n");
 }
 
 // ==================== CRUD ====================
@@ -56,10 +55,6 @@ STARK_API stark_result_t stark_add(stark_db_t* db, uint32_t key,
                                     const void* value, size_t value_size) {
     if (!db || !db->internal_db) return STARK_CLOSED;
     if (!value || value_size == 0) return STARK_INVALID_ARG;
-
-    if (db->in_transaction) {
-        printf("Logging change for key %u in transaction\n", key);
-    }
 
     DB_Result result = db_insert(db->internal_db, key, value, value_size);
 
@@ -317,7 +312,6 @@ STARK_API stark_result_t stark_put_str(stark_db_t* db, const char* key,
     if (!db || !db->internal_db) return STARK_CLOSED;
     if (!key || !value || value_size == 0) return STARK_INVALID_ARG;
     uint32_t hashed_key = hash_string(key);
-    printf("Debug: String key '%s' hashed to %u\n", key, hashed_key);
     return stark_add(db, hashed_key, value, value_size);
 }
 
@@ -326,7 +320,6 @@ STARK_API stark_result_t stark_get_str(stark_db_t* db, const char* key,
     if (!db || !db->internal_db) return STARK_CLOSED;
     if (!key || !buffer_size) return STARK_INVALID_ARG;
     uint32_t hashed_key = hash_string(key);
-    printf("Debug: String key '%s' hashed to %u\n", key, hashed_key);
     if (buffer == NULL) {
         char dummy[1];
         size_t dummy_size = 0;
@@ -403,16 +396,12 @@ STARK_API const char* stark_error(stark_db_t* db) {
 STARK_API stark_result_t stark_sync(stark_db_t* db) {
     if (!db || !db->internal_db) return STARK_CLOSED;
     Database* internal = db->internal_db;
-    printf("Syncing to disk...\n");
     if (internal->index && internal->index->pager) {
-        printf("  Flushing index pager (%u pages)\n", internal->index->pager->num_pages);
         pager_flush_all(internal->index->pager);
     }
     if (internal->storage && internal->storage->pager) {
-        printf("  Flushing storage pager (%u pages)\n", internal->storage->pager->num_pages);
         pager_flush_all(internal->storage->pager);
     }
-    printf("Synced to disk\n");
     return STARK_OK;
 }
 
@@ -485,19 +474,13 @@ STARK_API stark_result_t stark_get_typed(stark_db_t* db, const char* type_name,
     if (!db || !db->internal_db) return STARK_CLOSED;
     if (!type_name || !output || output_size == 0) return STARK_INVALID_ARG;
 
-    printf("Looking up type: '%s'\n", type_name);
-
     TypeDef* type = type_get(db, type_name);
     if (!type) {
-        printf("Type '%s' not found in database\n", type_name);
         return STARK_NOT_FOUND;
     }
 
-    printf("Found type: %s (ID: %u, size: %u bytes)\n", type->name, type->id, type->size);
-
     char data_key[256];
     snprintf(data_key, sizeof(data_key), "%s:%u", type_name, key);
-    printf("Data key: %s\n", data_key);
 
     void* buffer = malloc(type->size);
     if (!buffer) {
@@ -509,11 +492,8 @@ STARK_API stark_result_t stark_get_typed(stark_db_t* db, const char* type_name,
     stark_result_t result = stark_get_str(db, data_key, buffer, &size);
 
     if (result == STARK_OK) {
-        printf("Data retrieved, size: %zu bytes\n", size);
         result = type_deserialize(type->fields, type->field_count,
                                   buffer, output, output_size);
-    } else if (result == STARK_NOT_FOUND) {
-        printf("Data key '%s' not found\n", data_key);
     }
 
     free(buffer);
@@ -542,7 +522,6 @@ STARK_API stark_result_t stark_begin(stark_db_t* db) {
         db->in_transaction = 0;
         return STARK_MEMORY_ERROR;
     }
-    printf("Transaction started\n");
     return STARK_OK;
 }
 
@@ -553,7 +532,6 @@ STARK_API stark_result_t stark_commit(stark_db_t* db) {
     db->transaction_log = NULL;
     db->log_size = 0;
     db->in_transaction = 0;
-    printf("Transaction committed\n");
     return STARK_OK;
 }
 
@@ -564,7 +542,6 @@ STARK_API stark_result_t stark_rollback(stark_db_t* db) {
     db->transaction_log = NULL;
     db->log_size = 0;
     db->in_transaction = 0;
-    printf("Transaction rolled back\n");
     return STARK_OK;
 }
 

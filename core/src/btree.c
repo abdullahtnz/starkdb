@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define BTREE_DEBUG 0
+
 static LeafNode *get_leaf_node(Pager *pager, page_num_t page_num) {
     return (LeafNode *)pager_get_page(pager, page_num);
 }
@@ -218,13 +220,9 @@ DB_Result btree_insert(BTree *tree, uint32_t key, uint64_t value) {
 }
 
 DB_Result btree_find(BTree *tree, uint32_t key, uint64_t *value) {
-    printf("Debug: btree_find(key=%u)\n", key);
-
     page_num_t current_page = tree->root_page_num;
     void *node = pager_get_page(tree->pager, current_page);
     NodeHeader *header = (NodeHeader *)node;
-
-    printf("Debug: Root page=%u, node type=%d\n", current_page, header->type);
 
     while (header->type == NODE_INTERNAL) {
         InternalNode *internal = (InternalNode *)node;
@@ -235,33 +233,25 @@ DB_Result btree_find(BTree *tree, uint32_t key, uint64_t *value) {
         }
 
         current_page = internal->children[child_index];
-        printf("Debug: Going to child page %u at index %d\n", current_page, child_index);
 
         node = pager_get_page(tree->pager, current_page);
         header = (NodeHeader *)node;
     }
 
     LeafNode *leaf = (LeafNode *)node;
-    printf("Debug: Leaf node has %u cells\n", leaf->num_cells);
 
     for (int i = 0; i < leaf->num_cells; i++) {
-        printf("Debug: Cell %d: key=%u, value=%lu\n", i, leaf->keys[i],
-               (unsigned long)leaf->values[i]);
         if (leaf->keys[i] == key) {
             *value = leaf->values[i];
-            printf("Debug: Found key %u at cell %d, value=%lu\n", key, i, (unsigned long)*value);
             return DB_SUCCESS;
         }
     }
 
-    printf("Debug: Key %u not found in leaf\n", key);
     return DB_NOT_FOUND;
 }
 
 DB_Result btree_delete(BTree *tree, uint32_t key) {
     if (!tree || !tree->pager) return DB_ERROR;
-
-    printf("Debug: btree_delete(key=%u)\n", key);
 
     page_num_t current_page = tree->root_page_num;
     void *node = pager_get_page(tree->pager, current_page);
@@ -291,11 +281,8 @@ DB_Result btree_delete(BTree *tree, uint32_t key) {
     }
 
     if (found_index == -1) {
-        printf("Debug: Key %u not found in leaf\n", key);
         return DB_NOT_FOUND;
     }
-
-    printf("Debug: Removing key %u at index %d\n", key, found_index);
 
     for (int i = found_index; i < leaf->num_cells - 1; i++) {
         leaf->keys[i] = leaf->keys[i + 1];
@@ -303,7 +290,6 @@ DB_Result btree_delete(BTree *tree, uint32_t key) {
     }
 
     leaf->num_cells--;
-    printf("Debug: Leaf now has %u cells\n", leaf->num_cells);
 
     pager_flush_page(tree->pager, current_page);
     return DB_SUCCESS;
