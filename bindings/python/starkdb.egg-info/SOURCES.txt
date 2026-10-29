@@ -1,0 +1,12 @@
+MANIFEST.in
+README.md
+pyproject.toml
+setup.py
+starkdb/__init__.py
+starkdb/_lib.py
+starkdb/database.py
+starkdb.egg-info/PKG-INFO
+starkdb.egg-info/SOURCES.txt
+starkdb.egg-info/dependency_links.txt
+starkdb.egg-info/requires.txt
+starkdb.egg-info/top_level.txt
