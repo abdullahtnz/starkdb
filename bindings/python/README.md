@@ -2,6 +2,10 @@
 
 Python bindings for STARKDB - a lightweight embedded key-value database with ML features.
 
+Database files use STARKDB **file format version 1**: both `.idx` and `.dat`
+begin with a 16-byte header (magic `"STARKDB\0"`, version, flags). Legacy
+header-less databases can be upgraded with the C API `stark_upgrade_file()`.
+
 ## Features
 
 - Full CRUD operations (numeric and string keys)

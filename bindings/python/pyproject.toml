@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "starkdb"
-version = "1.1.0"
+version = "2.0.0"
 description = "Python bindings for STARKDB - a lightweight embedded key-value database with ML array support"
 readme = "README.md"
 license = {text = "MIT"}

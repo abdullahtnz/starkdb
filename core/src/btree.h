@@ -45,10 +45,12 @@ DB_Result btree_find(BTree *tree, uint32_t key, uint64_t *value);
 DB_Result btree_delete(BTree *tree, uint32_t key);
 
 uint32_t btree_count_keys(BTree *tree);
+uint32_t btree_height(const BTree *tree);
 typedef struct BTreeCursor BTreeCursor;
 BTreeCursor *btree_cursor_create(BTree *tree);
 DB_Result btree_cursor_first(BTreeCursor *cursor);
 DB_Result btree_cursor_last(BTreeCursor *cursor);
+DB_Result btree_cursor_seek(BTreeCursor *cursor, uint32_t key);
 DB_Result btree_cursor_next(BTreeCursor *cursor);
 DB_Result btree_cursor_prev(BTreeCursor *cursor);
 DB_Result btree_cursor_get(BTreeCursor *cursor, uint32_t *key, uint64_t *value);

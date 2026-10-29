@@ -25,7 +25,37 @@ DataFrame usage:
     df2 = db.load_dataframe("users")
 """
 
-from .database import Database, StarkDBError, StarkDBNotFound
+from .database import (
+    Database,
+    StarkDBError,
+    StarkDBNotFound,
+    StarkDBFull,
+    StarkDBIOError,
+    StarkDBValueError,
+    StarkDBClosed,
+    StarkDBMemoryError,
+    StarkDBLockedError,
+    StarkDBCorruptError,
+    StarkDBVersionError,
+    StarkDBReadOnlyError,
+    restore,
+    upgrade_file,
+)
 
-__version__ = "1.1.0"
-__all__ = ["Database", "StarkDBError", "StarkDBNotFound"]
+__version__ = "2.0.0"
+__all__ = [
+    "Database",
+    "StarkDBError",
+    "StarkDBNotFound",
+    "StarkDBFull",
+    "StarkDBIOError",
+    "StarkDBValueError",
+    "StarkDBClosed",
+    "StarkDBMemoryError",
+    "StarkDBLockedError",
+    "StarkDBCorruptError",
+    "StarkDBVersionError",
+    "StarkDBReadOnlyError",
+    "restore",
+    "upgrade_file",
+]

@@ -1,6 +1,6 @@
 # STARKDB — Complete Context & Reference Guide
 
-**Version:** 1.1.0 (Python binding `starkdb` package: 1.1.0)
+**Version:** 2.0.0 (Python binding `starkdb` package: 2.0.0)
 **License:** MIT
 **Language:** Core is C99; bindings for C++, C, and Python (ctypes).
 **Author / Contact:** Abdullah Novruzlu — novruzluabdullah03@gmail.com
@@ -126,8 +126,18 @@ typedef enum { DB_SUCCESS=0, DB_ERROR=-1, DB_NOT_FOUND=-2,
 ```
 
 ### 4.3 Pager (`pager.c`)
-- Opens file in `rb+`, or creates it `wb+` if it does not exist.
-- `num_pages = file_size / PAGE_SIZE`; the file must be a multiple of `PAGE_SIZE`.
+- **File format version 1.** Both `.idx` and `.dat` start with a 16-byte header:
+  - offset 0: 8-byte magic `"STARKDB\0"`
+  - offset 8: `uint32 version` (currently `1`)
+  - offset 12: `uint32 flags` (reserved, `0`)
+  - offset 16: page data begins
+- All page I/O offsets are `HEADER_SIZE + page_num * PAGE_SIZE`
+  (`page_file_offset()` in `pager.h`). Pages themselves are unchanged.
+- `num_pages = (file_size - HEADER_SIZE) / PAGE_SIZE`; the remainder must be 0.
+- A new/empty file gets the header written (and `fsync`ed) immediately.
+  A file smaller than 16 bytes, a bad magic, or a newer version is rejected.
+- `stark_upgrade_file(path)` upgrades legacy (header-less) files by prepending
+  the header via temp-file + rename.
 - Page cache is a fixed array of 200 pointers; pages are allocated lazily with `calloc`.
 - `pager_allocate_page` scans for the first free cache slot; each new page is
   zero-initialized in memory and flushed on close / `stark_sync`.
@@ -138,7 +148,7 @@ typedef enum { DB_SUCCESS=0, DB_ERROR=-1, DB_NOT_FOUND=-2,
   i.e., address into the `.dat` file).
 - Internal: `num_keys` (max **30**), `keys[30]`, `children[31]` (page numbers).
 - Operations: `btree_insert`, `btree_find`, `btree_delete`, `btree_count_keys`,
-  plus a full cursor (`btree_cursor_create/first/last/next/prev/get/destroy`).
+  `btree_height`, plus a full cursor (`btree_cursor_create/first/last/next/prev/get/destroy`).
 - Duplicate keys: re-inserting an existing key writes the new value cell
   (leaf_node_insert inserts in sorted order; existing entries are effectively
   overwritten by insertion of the new value, and `db_insert` writes a new data
@@ -369,7 +379,9 @@ typedef enum {
     STARK_IO_ERROR = -4,
     STARK_INVALID_ARG = -5,
     STARK_CLOSED = -6,
-    STARK_MEMORY_ERROR = -7
+    STARK_MEMORY_ERROR = -7,
+    STARK_STALE_CURSOR = -8,
+    STARK_BUFFER_TOO_SMALL = -9
 } stark_result_t;
 ```
 *(The older result-code table on the website docs page is outdated; the enum above
@@ -387,9 +399,38 @@ typedef enum {
 
 ### 8.3 Lifecycle
 ```c
-stark_db_t* stark_open(const char* path, unsigned flags); // flags ignored (pass 0)
-void stark_close(stark_db_t* db);                          // syncs, then closes
+#define STARK_OPEN_CREATE   0x0u  // create if missing (default)
+#define STARK_OPEN_EXCL     0x1u  // fail if the database does not exist
+#define STARK_OPEN_READONLY 0x2u  // shared flock; all mutators are rejected
+
+typedef enum {
+    STARK_OPEN_OK = 0, STARK_OPEN_ERR_LOCKED = 1,
+    STARK_OPEN_ERR_NOT_FOUND = 2, STARK_OPEN_ERR_READONLY = 3,
+    STARK_OPEN_ERR_CORRUPT = 4, STARK_OPEN_ERR_VERSION = 5,
+    STARK_OPEN_ERR_IO = 6, STARK_OPEN_ERR_INVALID_ARG = 7
+} stark_open_error_t;
+
+stark_db_t* stark_open(const char* path, unsigned flags);
+stark_result_t stark_open_ex(stark_db_t** out_db, const char* path,
+                             uint32_t flags, stark_open_error_t* out_err);
+const char* stark_last_open_error(void); // NULL after success; NOT thread-safe
+void stark_close(stark_db_t* db);        // syncs, releases the lock, closes
 ```
+`stark_open` acquires an exclusive non-blocking `flock()` on `<path>.idx`
+(shared for read-only handles). A second process (or a second handle in the
+same process) fails immediately with `STARK_OPEN_ERR_LOCKED`. Compaction hands
+the lock over to the newly installed `.idx` inode.
+
+### 8.3b Backup & restore
+```c
+stark_result_t stark_backup(stark_db_t* db, const char* dest_prefix);
+stark_result_t stark_restore(const char* src_prefix, const char* dest_prefix);
+```
+`stark_backup` syncs, then installs `<dest>.idx`/`<dest>.dat` via temp files +
+rename (non-atomic EXDEV fallback); stale `*.tmp` files are cleaned and the
+operation retried in the same call. It rejects active transactions and a busy
+destination. `stark_restore` is a cold whole-database replace: it validates but
+does not lock the source, and fails if the destination is in use or invalid.
 
 ### 8.4 CRUD (numeric keys)
 ```c
@@ -398,7 +439,8 @@ stark_result_t stark_add(stark_db_t* db, uint32_t key, const void* value, size_t
 //   put == add (both insert-or-update). value_size must be > 0.
 stark_result_t stark_get(stark_db_t* db, uint32_t key, void* buffer, size_t* buffer_size);
 //   *buffer_size is in/out: pass buffer capacity, returns actual size.
-//   Returns STARK_ERROR if buffer too small (and sets *buffer_size to needed size).
+//   NULL or too-small buffers return STARK_BUFFER_TOO_SMALL with the required
+//   size in *buffer_size. Probes are therefore unambiguous with real errors.
 stark_result_t stark_delete(stark_db_t* db, uint32_t key);
 int stark_exists(stark_db_t* db, uint32_t key);   // 1 = exists, 0 = no
 ```
@@ -414,12 +456,26 @@ stark_result_t stark_cursor_get(stark_cursor_t* c, uint32_t* key, void* buffer, 
 void stark_cursor_destroy(stark_cursor_t* c);
 ```
 
+### 8.5b Range iteration
+```c
+typedef int (*stark_foreach_cb)(uint32_t key, const void* value,
+                                size_t value_size, void* user);
+stark_result_t stark_foreach_range(stark_db_t* db, uint32_t key_min,
+                                   uint32_t key_max, stark_foreach_cb cb, void* user);
+```
+Iterates raw B-tree keys in `[key_min, key_max)` ascending (djb2 hashes of
+string keys in that range are included). Returning non-zero from `cb` stops
+early and still returns `STARK_OK`. A write from `cb` aborts with
+`STARK_ERROR` (`"foreach: modified during iteration"`). The value pointer is
+valid only during the callback. Internally this uses a B-tree seek, so it does
+not scan keys below `key_min`.
+
 ### 8.6 String keys
 ```c
 stark_result_t stark_put_str(stark_db_t* db, const char* key, const void* value, size_t value_size);
 stark_result_t stark_get_str(stark_db_t* db, const char* key, void* buffer, size_t* buffer_size);
-//   If buffer == NULL: acts as a size probe — returns STARK_ERROR with *buffer_size
-//   set if the key exists, STARK_NOT_FOUND otherwise. (The type system relies on this.)
+//   Same in/out semantics as stark_get(): a NULL/undersized buffer returns
+//   STARK_BUFFER_TOO_SMALL with the required size set.
 stark_result_t stark_del_str(stark_db_t* db, const char* key);
 int stark_exists_str(stark_db_t* db, const char* key);
 ```
@@ -432,6 +488,8 @@ stark_result_t stark_store_binary(stark_db_t* db, uint32_t key, stark_dtype_t dt
 //   If elem_size == 0 it is derived from dtype.
 stark_result_t stark_load_binary(stark_db_t* db, uint32_t key, stark_dtype_t* dtype,
                                  void* buffer, size_t* count, size_t* elem_size);
+//   *count is the buffer capacity in elements; undersized/NULL buffers return
+//   STARK_BUFFER_TOO_SMALL with the required count in *count.
 stark_result_t stark_get_binary_ptr(stark_db_t* db, uint32_t key, stark_dtype_t* dtype,
                                     void** ptr, size_t* count, size_t* elem_size);
 //   Zero-copy: *ptr points into DB memory; valid only until next DB write/close.
@@ -479,8 +537,8 @@ atomicity at the C level; the Python `put_batch` wraps it in begin/commit).
 ### 8.10 Statistics & utilities
 ```c
 typedef struct {
-    uint64_t keys_count;     // NOTE: from btree_count_keys — see Caveats
-    uint32_t btree_height;   // NOTE: hard-coded to 1
+    uint64_t keys_count;     // exact count across all B-tree leaves
+    uint32_t btree_height;   // 1 for a single leaf root, 2 for root+children, ...
     uint64_t data_size;
     uint32_t page_count;
 } stark_stats_t;
@@ -596,6 +654,8 @@ bool in_transaction();
 ```cpp
 void sync();
 Stats stats();
+void backup(const std::string& dest_prefix);
+template<typename Fn> void foreach_range(uint32_t key_min, uint32_t key_max, Fn fn);
 std::string get_last_error();   // from stark_error(db)
 ```
 
@@ -641,10 +701,11 @@ int main() {
 }
 ```
 
-> **C++ buffer limits:** `get()`/`get_str()` use a 4096-byte buffer and
-> `get_typed()` uses 8192 bytes. Values larger than these cannot be read back
-> through the C++ wrapper (use the C or Python API for larger blobs).
-> C++ writes **include the trailing NUL byte** (`value.size()+1`).
+> **C++ buffer growth:** `get()`/`get_str()`/`get_typed()` retry with the size
+> reported by `STARK_BUFFER_TOO_SMALL`, so any storable value can be read back.
+> C++ writes **include the trailing NUL byte** (`value.size()+1`), so numeric
+> and string reads normally include that byte. The constructor accepts
+> `STARK_OPEN_*` flags and uses `stark_open_ex` for error messages.
 
 ---
 
@@ -653,7 +714,7 @@ int main() {
 This is the highest-priority binding. The Python package is:
 ```
 starkdb/
-├── __init__.py     # exports Database, StarkDBError, StarkDBNotFound; __version__ = "1.1.0"
+├── __init__.py     # exports Database + exceptions + restore; __version__ = "2.0.0"
 ├── _lib.py         # ctypes bindings to libstark + result-code constants
 └── database.py     # Database class (all high-level logic)
 ```
@@ -673,12 +734,17 @@ db = starkdb.Database("mydb")
 | `starkdb.StarkDBValueError` | Invalid argument |
 | `starkdb.StarkDBClosed` | Operation on a closed DB |
 | `starkdb.StarkDBMemoryError` | Memory allocation failure |
+| `starkdb.StarkDBLockedError` | Another process holds the database lock |
+| `starkdb.StarkDBCorruptError` | Bad magic/size or incomplete database |
+| `starkdb.StarkDBVersionError` | File format is newer than supported |
+| `starkdb.StarkDBReadOnlyError` | File cannot be opened for writing |
 
 All are subclasses of `StarkDBError`.
 
 ### 10.2 Lifecycle
 ```python
 db = starkdb.Database("mydb")      # opens or creates mydb.idx + mydb.dat
+db = starkdb.Database("mydb", starkdb._lib.STARK_OPEN_READONLY)  # optional flags
 db.close()                         # flushes (sync) then closes
 db.closed                          # bool property
 db.error()                         # str — last C-level error message
@@ -732,6 +798,20 @@ count  = db.count()                # len(keys)
 ```
 > Note: because string keys are stored as djb2 hashes, iteration yields the
 > **hashed uint32 values**, not the original strings.
+
+Range iteration (raw B-tree keys in `[min, max)`, ascending):
+```python
+for key, value in db.foreach_range(1_000_000, 2_000_000):
+    print(key, value)
+```
+
+### 10.5b Backup / restore
+```python
+db.backup("/tmp/snapshot")          # consistent copy of the open database
+starkdb.restore("/tmp/snapshot", "/tmp/restored")  # cold whole-DB replace
+```
+`backup` rejects an active transaction and a destination that is in use.
+`restore` validates the source headers but does not lock the source.
 
 ### 10.6 Batch operations
 ```python
@@ -1003,10 +1083,12 @@ them, `rollback` discards them. **See §18 for the current implementation caveat
 Every `stark_*` function returns a `stark_result_t` code (0 = OK, negative = error).
 `stark_error(db)` returns the last human-readable error string.
 Notable behaviors:
-- `stark_get`: returns `STARK_ERROR` when the caller's buffer is too small and sets
-  `*buffer_size` to the required size.
-- `stark_get_str(db, key, NULL, &size)`: size-probe — `STARK_ERROR` (with size set)
-  if found, `STARK_NOT_FOUND` if missing.
+- `stark_get` / `stark_get_str` / `stark_cursor_get`: a NULL or too-small buffer
+  returns `STARK_BUFFER_TOO_SMALL` and writes the required size to `*size`.
+- `stark_load_binary`: the same code applies, with `*count` as capacity.
+- `stark_get_typed`: too-small output returns `STARK_BUFFER_TOO_SMALL`; the
+  required byte count is in `stark_error(db)`.
+- `STARK_ERROR` is reserved for real I/O/parse failures.
 - `stark_put`/`stark_add` return `STARK_INVALID_ARG` for empty values
   (`value_size == 0`).
 
@@ -1075,83 +1157,78 @@ python3 test_starkdb.py
 An AI working on this codebase should know these — some documented behavior differs
 from what the marketing docs claim:
 
-1. **Transactions are nominal.** `stark_begin`/`stark_commit`/`stark_rollback`
-   (database_api.c:504-546) only set/reset a flag and allocate/free a throwaway log
-   buffer. Writes are applied immediately; **`rollback` does not restore old
-   values.** The ACID/atomicity claims in the README/website describe the *intended*
-   design, not the current implementation.
+1. **Cross-process locking is per `.idx` inode.** `flock()` is held on
+   `<path>.idx` for the handle's lifetime; `.dat` is protected through the same
+   lock. `stark_compact` locks the newly built `.idx.new` before installing it,
+   so the lock survives the rename. Compaction and `stark_upgrade_file` should
+   still only be performed by the sole process that owns the database.
 
-2. **`stats().keys_count` can be wrong.** `stark_stats` uses `btree_count_keys`,
-   which only reads the leftmost leaf (btree.c:298-317). For small DBs (single
-   leaf) it is accurate; for multi-page trees it undercounts.
+2. **Read-only handles cannot run recovery.** A `.txn` or `.compact` sentinel
+   requires a read-write open first. Two `STARK_OPEN_READONLY` handles coexist
+   (shared lock), but any writer is rejected with `STARK_OPEN_ERR_LOCKED`.
 
-3. **`stats().btree_height` is hard-coded to `1`** in `stark_stats`
-   (database_api.c:384).
+3. **Windows locking is a stub.** The `_WIN32` build compiles with a warning
+   and does not provide cross-process exclusion yet.
 
-4. **`stark_list_types` / `type_list` is a stub** (type.c:157-176): it prints an
-   info message and returns no names.
+4. **Backup/restore atomicity is filesystem-dependent.** Both files are copied
+   to `.tmp` and renamed; atomicity requires the destination to be on the same
+   filesystem. `EXDEV` falls back to a non-atomic copy. `stark_backup` is the
+   safe path; `stark_restore` does not lock its source and is for cold files.
 
-5. **`undefine_type` does not delete the type's records** (type.c:142-153) — only
-   the definition under `type:<name>` is removed.
+5. **Buffer-too-small is a breaking change in v2.** `stark_get`,
+   `stark_get_str`, `stark_get_typed`, `stark_load_binary`,
+   `stark_cursor_get`, and both bindings now use `STARK_BUFFER_TOO_SMALL (-9)`
+   for probes/undersized buffers. `STARK_ERROR` remains for real I/O/parse
+   failures.
 
-6. **Dtype ambiguity for binary arrays:** the C layer infers dtype from element
-   byte size on load, so `int32` (4 bytes) loads back as `float32`. Prefer
-   `float64`/`int16`/`uint8`/`int8` for exact dtype round-trips.
+6. **Transactions are real copy-truncate transactions.** Flushes are suppressed
+   while a transaction is active; commit flushes, rollback truncates both files
+   to the captured sizes and reinitializes from disk. A `.txn` sentinel makes
+   crash recovery possible. Transaction size is still bounded by the page cache
+   (`TABLE_MAX_PAGES = 200`).
 
-7. **String-key hashing collisions:** string keys are djb2-hashed into the same
+7. **`stark_get_typed` string output is capped at 255 bytes per field.** The
+   stored record is full-size (field size controls storage); only the textual
+   `field="value"` formatter uses a 256-byte scratch buffer (pre-existing
+   behavior). The exact required output size is reported on
+   `STARK_BUFFER_TOO_SMALL`.
+
+8. **`stark_list_types` / `type_list` is still a stub** (type.c): it prints an
+   informational message and returns no names.
+
+9. **String-key hashing collisions:** string keys are djb2-hashed into the same
    `uint32_t` space as numeric keys. Two different strings (or a string and a
    numeric key) can hash to the same key and overwrite each other.
 
-8. **Garbage data blocks:** overwriting/deleting a key writes a new block to the
-   `.dat` file but never reclaims the old one (append-only, `storage_delete` just
-   zeroes a size header). Files grow with updates; a compact/defrag feature does
-   not exist.
+10. **The `.dat` file is append-only without compaction.** Overwrites/deletes
+    leave old blocks as garbage; `stark_compact` rewrites live values and
+    rebuilds the index. `stark_stats().keys_count` and `btree_height` are exact
+    and account for multi-page trees.
 
-9. **Max value size:** a single value must fit inside one 64 KB page
-   (≈65,524 bytes of payload). The Python `get`/`get_str` use 65536-byte buffers;
-   larger stored values cannot be read back through those wrappers.
+11. **Max value size:** a single value must fit inside one 64 KB page
+    (≈65,524 bytes of payload). Python/C++ getters grow and retry using
+    `STARK_BUFFER_TOO_SMALL`, so any storable value can be read back.
 
-10. **C++ buffer limits:** `get`/`get_str` use 4096-byte buffers; `get_typed`
-    uses 8192. Larger blobs require the C or Python API.
+12. **NUL-termination mismatch:** C++ writes `value.size()+1` bytes (trailing
+    NUL); Python writes exactly `len(value)` bytes. Cross-reading can produce an
+    extra `\x00` (stripped by `get_text`/`get_str_text`).
 
-11. **NUL-termination mismatch:** C++ writes `value.size()+1` bytes (trailing NUL);
-    Python writes exactly `len(value)` bytes. Cross-reading produces an extra
-    `\x00` (stripped by `get_text`/`get_str_text`).
+13. **`_check_result` in `_lib.py` references exception classes not defined in
+    that module** — it is unused dead code (high-level methods check codes
+    directly), so it never executes.
 
-12. **`stark_open` ignores `flags`** (database_api.c:21-22).
+14. **The website docs page lists an outdated C result-code table.** The
+    authoritative values are the `stark_result_t` enum in `stark.h` (§8.1).
 
-13. **`examples/cpp/CMakeLists.txt` references `game_example.cpp`** which does not
-    exist (only `test.cpp` exists); the `BUILD_CPP_EXAMPLES` option is OFF by
-    default so the default build is unaffected.
+15. **Python is pure `ctypes`.** No Python C extension is compiled, but
+    `libstark.so` must exist (or be pointed at by `STARK_LIB_PATH`).
 
-14. **`type_get` prints debug messages** (`✅`/`❌`) to stdout (type.c:119-123) —
-    the CLI and any C caller will see them.
+16. **C++ multi-field type offsets are correct.** `Database::define_type`
+    computes sequential offsets and forces int fields to 4 bytes, matching the
+    CLI and Python layouts.
 
-15. **`_check_result` in `_lib.py` references exception classes not defined in that
-    module** — it is unused dead code (high-level methods check codes directly),
-    so it never executes.
-
-16. **The website docs page lists an outdated C result-code table**
-    (STARK_ERR=1, STARK_NOT_FOUND=2, ...). The authoritative values are the
-    `stark_result_t` enum in `stark.h` (§8.1).
-
-17. **C extension absence:** the Python binding is pure `ctypes`; no compilation
-    of Python C extensions is needed, but `libstark.so` must exist (build first).
-
-18. **Multi-field types are broken in the C++ binding (verified).**
-    `Database::define_type` (C++, `Field::to_c()`) passes `FieldDef.offset = 0`
-    for every field, and `type_create` (type.c:63-103) does not recompute
-    offsets — it only sums sizes and stores the fields verbatim. Only the CLI
-    path (via `type_parse_fields`) and the Python binding (since the fix in
-    `database.py:define_type`, which computes sequential offsets and forces
-    `int` fields to size 4) lay out fields correctly. Consequence in C++: all
-    fields of a type live at byte offset 0, serialize on top of each other, and
-    every field reads back the value of whichever field appears **last** in the
-    `field_values` string. E.g. `[{"a",int},{"b",int}]` + `"a=100 b=50"` →
-    `get_typed` returns `a=50 b=50`. **Workarounds for C++:** define multi-field
-    types through the CLI or the Python binding (they are stored in the DB and
-    usable from any binding), or use single-field types. Single-field types
-    round-trip correctly.
+17. **`examples/cpp/CMakeLists.txt` references `game_example.cpp`** which does
+    not exist (only `test.cpp` exists); `BUILD_CPP_EXAMPLES` is OFF by default.
 
 ---
 
@@ -1208,6 +1285,12 @@ from what the marketing docs claim:
 
 ## 20. Changelog highlights (from repo history & docs)
 
+- v2.0.0 — cross-process file locking (`STARK_OPEN_*`, `stark_open_ex`,
+  `stark_last_open_error`), `stark_backup`/`stark_restore`, range iteration
+  (`stark_foreach_range` with a B-tree seek), read-only handles, and the
+  breaking `STARK_BUFFER_TOO_SMALL` getter semantics. C++/Python getters retry
+  with the required size; Python adds locked/corrupt/version/read-only
+  exceptions plus `backup`, `restore`, and `foreach_range`.
 - v1.1.0 — Python bindings released (`starkdb` package); ML features
   (NumPy binary arrays, zero-copy, Arrow column layout, DataFrame support);
   batch operations; type system in Python.

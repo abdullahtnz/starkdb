@@ -53,7 +53,7 @@ static DB_Result leaf_node_insert(LeafNode *node, uint32_t key, uint64_t value) 
     }
 
     int insertion_point = 0;
-    while (insertion_point < node->num_cells && node->keys[insertion_point] < key) {
+    while (insertion_point < (int)node->num_cells && node->keys[insertion_point] < key) {
         insertion_point++;
     }
 
@@ -69,154 +69,197 @@ static DB_Result leaf_node_insert(LeafNode *node, uint32_t key, uint64_t value) 
     return DB_SUCCESS;
 }
 
-static DB_Result split_leaf_node(BTree *tree, LeafNode *old_node, page_num_t old_page_num) {
-    page_num_t new_page_num = pager_allocate_page(tree->pager);
-    if (new_page_num == INVALID_PAGE) return DB_FULL;
+typedef struct {
+    int split;            // 1 if the subtree split into two siblings
+    uint32_t promote_key; // separator key to insert in the parent
+    page_num_t new_page;  // new right sibling page when split
+} InsertResult;
 
-    LeafNode *new_node = get_leaf_node(tree->pager, new_page_num);
-    initialize_leaf_node((void *)new_node);
+// Recursively insert (key,value) into the subtree rooted at page_num.
+// If the subtree splits, res->split is set and promote_key/new_page describe
+// the new right sibling. Splits propagate naturally up to any height.
+static DB_Result insert_rec(BTree *tree, page_num_t page_num,
+                            uint32_t key, uint64_t value, InsertResult *res) {
+    void *node = pager_get_page(tree->pager, page_num);
+    if (!node) return DB_ERROR;
+    NodeHeader *header = (NodeHeader *)node;
+    res->split = 0;
 
-    int split_point = LEAF_NODE_MAX_CELLS / 2;
+    if (header->type == NODE_LEAF) {
+        LeafNode *leaf = (LeafNode *)node;
 
-    for (int i = split_point; i < LEAF_NODE_MAX_CELLS; i++) {
-        new_node->keys[i - split_point] = old_node->keys[i];
-        new_node->values[i - split_point] = old_node->values[i];
-    }
-    new_node->num_cells = LEAF_NODE_MAX_CELLS - split_point;
-    old_node->num_cells = split_point;
-
-    uint32_t new_key = new_node->keys[0];
-
-    if (old_node->header.is_root) {
-        page_num_t root_page_num = pager_allocate_page(tree->pager);
-        if (root_page_num == INVALID_PAGE) return DB_FULL;
-
-        InternalNode *root = get_internal_node(tree->pager, root_page_num);
-        initialize_internal_node(root);
-        root->header.is_root = 1;
-
-        root->children[0] = old_page_num;
-        root->keys[0] = new_key;
-        root->children[1] = new_page_num;
-        root->num_keys = 1;
-
-        old_node->header.is_root = 0;
-        old_node->header.parent = root_page_num;
-        new_node->header.parent = root_page_num;
-
-        tree->root_page_num = root_page_num;
-    } else {
-        InternalNode *parent = get_internal_node(tree->pager, old_node->header.parent);
-
-        int insert_index = 0;
-        while (insert_index <= parent->num_keys &&
-               parent->children[insert_index] != old_page_num) {
-            insert_index++;
-        }
-
-        for (int i = parent->num_keys; i > insert_index; i--) {
-            parent->keys[i] = parent->keys[i - 1];
-            parent->children[i + 1] = parent->children[i];
-        }
-
-        parent->keys[insert_index] = new_key;
-        parent->children[insert_index + 1] = new_page_num;
-        parent->num_keys++;
-
-        new_node->header.parent = old_node->header.parent;
-
-        if (parent->num_keys >= INTERNAL_NODE_MAX_KEYS) {
-            page_num_t new_internal_page = pager_allocate_page(tree->pager);
-            if (new_internal_page == INVALID_PAGE) return DB_FULL;
-
-            InternalNode *new_internal = get_internal_node(tree->pager, new_internal_page);
-            initialize_internal_node(new_internal);
-
-            int mid = INTERNAL_NODE_MAX_KEYS / 2;
-            uint32_t promote_key = parent->keys[mid];
-
-            for (int i = mid + 1; i < parent->num_keys; i++) {
-                new_internal->keys[i - mid - 1] = parent->keys[i];
-                new_internal->children[i - mid - 1] = parent->children[i];
-            }
-            new_internal->children[parent->num_keys - mid - 1] = parent->children[parent->num_keys];
-            new_internal->num_keys = parent->num_keys - mid - 1;
-            parent->num_keys = mid;
-
-            InternalNode *parent_of_parent = NULL;
-            page_num_t parent_parent_page = parent->header.parent;
-
-            if (parent->header.is_root) {
-                page_num_t new_root_page = pager_allocate_page(tree->pager);
-                if (new_root_page == INVALID_PAGE) return DB_FULL;
-
-                InternalNode *new_root = get_internal_node(tree->pager, new_root_page);
-                initialize_internal_node(new_root);
-                new_root->header.is_root = 1;
-
-                new_root->keys[0] = promote_key;
-                new_root->children[0] = old_node->header.parent;
-                new_root->children[1] = new_internal_page;
-                new_root->num_keys = 1;
-
-                parent->header.is_root = 0;
-                parent->header.parent = new_root_page;
-                new_internal->header.parent = new_root_page;
-
-                tree->root_page_num = new_root_page;
-            } else if (parent_parent_page != INVALID_PAGE) {
-                parent_of_parent = get_internal_node(tree->pager, parent_parent_page);
-
-                int ins = 0;
-                while (ins < parent_of_parent->num_keys &&
-                       parent_of_parent->children[ins] != old_node->header.parent) {
-                    ins++;
-                }
-
-                for (int i = parent_of_parent->num_keys; i > ins; i--) {
-                    parent_of_parent->keys[i] = parent_of_parent->keys[i - 1];
-                    parent_of_parent->children[i + 1] = parent_of_parent->children[i];
-                }
-
-                parent_of_parent->keys[ins] = promote_key;
-                parent_of_parent->children[ins + 1] = new_internal_page;
-                parent_of_parent->num_keys++;
-
-                new_internal->header.parent = parent_parent_page;
+        // Existing key: overwrite value in place (counted once).
+        for (uint32_t i = 0; i < leaf->num_cells; i++) {
+            if (leaf->keys[i] == key) {
+                leaf->values[i] = value;
+                return DB_SUCCESS;
             }
         }
+
+        if (leaf->num_cells < LEAF_NODE_MAX_CELLS) {
+            return leaf_node_insert(leaf, key, value);
+        }
+
+        // Full leaf: merge the new entry then split into two halves.
+        uint32_t tmp_keys[LEAF_NODE_MAX_CELLS + 1];
+        uint64_t tmp_vals[LEAF_NODE_MAX_CELLS + 1];
+        uint32_t n = 0, ip = 0;
+        while (ip < leaf->num_cells && leaf->keys[ip] < key) {
+            tmp_keys[n] = leaf->keys[ip];
+            tmp_vals[n] = leaf->values[ip];
+            n++; ip++;
+        }
+        tmp_keys[n] = key;
+        tmp_vals[n] = value;
+        n++;
+        while (ip < leaf->num_cells) {
+            tmp_keys[n] = leaf->keys[ip];
+            tmp_vals[n] = leaf->values[ip];
+            n++; ip++;
+        }
+
+        uint32_t left_count = n / 2;
+        page_num_t new_page = pager_allocate_page(tree->pager);
+        if (new_page == INVALID_PAGE) return DB_FULL;
+        LeafNode *new_leaf = get_leaf_node(tree->pager, new_page);
+        initialize_leaf_node((void *)new_leaf);
+        new_leaf->header.parent = leaf->header.parent;
+
+        for (uint32_t i = 0; i < left_count; i++) {
+            leaf->keys[i] = tmp_keys[i];
+            leaf->values[i] = tmp_vals[i];
+        }
+        leaf->num_cells = left_count;
+
+        for (uint32_t i = left_count; i < n; i++) {
+            new_leaf->keys[i - left_count] = tmp_keys[i];
+            new_leaf->values[i - left_count] = tmp_vals[i];
+        }
+        new_leaf->num_cells = n - left_count;
+
+        res->split = 1;
+        res->promote_key = new_leaf->keys[0];
+        res->new_page = new_page;
+        return DB_SUCCESS;
     }
 
+    // Internal node: recurse into the appropriate child.
+    InternalNode *internal = (InternalNode *)node;
+    int child_index = 0;
+    while (child_index < (int)internal->num_keys &&
+           key >= internal->keys[child_index]) {
+        child_index++;
+    }
+
+    InsertResult child_res;
+    DB_Result r = insert_rec(tree, internal->children[child_index], key, value, &child_res);
+    if (r != DB_SUCCESS) return r;
+    if (!child_res.split) return DB_SUCCESS;
+
+    // A child split: insert (promote_key, new_page) here.
+    if (internal->num_keys < INTERNAL_NODE_MAX_KEYS) {
+        for (uint32_t i = internal->num_keys; i > (uint32_t)child_index; i--) {
+            internal->keys[i] = internal->keys[i - 1];
+            internal->children[i + 1] = internal->children[i];
+        }
+        internal->keys[child_index] = child_res.promote_key;
+        internal->children[child_index + 1] = child_res.new_page;
+        internal->num_keys++;
+        return DB_SUCCESS;
+    }
+
+    // Full internal node: merge then split into two halves.
+    uint32_t tmp_keys[INTERNAL_NODE_MAX_KEYS + 1];            // 31
+    page_num_t tmp_children[INTERNAL_NODE_MAX_CHILDREN + 1];  // 32
+
+    uint32_t j = 0;
+    for (uint32_t i = 0; i < (uint32_t)child_index; i++) {
+        tmp_keys[j++] = internal->keys[i];
+    }
+    tmp_keys[j++] = child_res.promote_key;
+    for (uint32_t i = (uint32_t)child_index; i < internal->num_keys; i++) {
+        tmp_keys[j++] = internal->keys[i];
+    }
+
+    uint32_t jc = 0;
+    for (uint32_t i = 0; i <= (uint32_t)child_index; i++) {
+        tmp_children[jc++] = internal->children[i];
+    }
+    tmp_children[jc++] = child_res.new_page;
+    for (uint32_t i = (uint32_t)child_index + 1; i <= internal->num_keys; i++) {
+        tmp_children[jc++] = internal->children[i];
+    }
+
+    uint32_t mid = INTERNAL_NODE_MAX_KEYS / 2;  // 15
+    page_num_t new_page = pager_allocate_page(tree->pager);
+    if (new_page == INVALID_PAGE) return DB_FULL;
+    InternalNode *new_internal = get_internal_node(tree->pager, new_page);
+    initialize_internal_node((void *)new_internal);
+    new_internal->header.parent = internal->header.parent;
+
+    for (uint32_t i = 0; i < mid; i++) {
+        internal->keys[i] = tmp_keys[i];
+    }
+    for (uint32_t i = 0; i <= mid; i++) {
+        internal->children[i] = tmp_children[i];
+    }
+    internal->num_keys = mid;
+
+    uint32_t nk = j;  // total keys in tmp (num_keys+1)
+    uint32_t nc = jc; // total children in tmp (num_keys+2)
+    for (uint32_t i = mid + 1; i < nk; i++) {
+        new_internal->keys[i - mid - 1] = tmp_keys[i];
+    }
+    for (uint32_t i = mid + 1; i < nc; i++) {
+        new_internal->children[i - mid - 1] = tmp_children[i];
+    }
+    new_internal->num_keys = nk - mid - 1;
+
+    res->split = 1;
+    res->promote_key = tmp_keys[mid];
+    res->new_page = new_page;
     return DB_SUCCESS;
 }
 
 DB_Result btree_insert(BTree *tree, uint32_t key, uint64_t value) {
-    page_num_t current_page = tree->root_page_num;
-    void *node = pager_get_page(tree->pager, current_page);
-    NodeHeader *header = (NodeHeader *)node;
+    InsertResult res;
+    DB_Result r = insert_rec(tree, tree->root_page_num, key, value, &res);
+    if (r != DB_SUCCESS) return r;
 
-    while (header->type == NODE_INTERNAL) {
-        InternalNode *internal = (InternalNode *)node;
+    if (res.split) {
+        // Keep the root pinned at page 0 so it can be recovered on reopen
+        // (the on-disk format has no separate root-page metadata). Relocate the
+        // old root's (left-half) content to a fresh page, then turn page 0 into
+        // the new internal root pointing at [relocated_left, right_sibling].
+        page_num_t root_page = tree->root_page_num;
+        page_num_t left_page = pager_allocate_page(tree->pager);
+        if (left_page == INVALID_PAGE) return DB_FULL;
 
-        int child_index = 0;
-        while (child_index < internal->num_keys && key >= internal->keys[child_index]) {
-            child_index++;
-        }
+        void *left_buf = pager_get_page(tree->pager, left_page);
+        void *root_buf = pager_get_page(tree->pager, root_page);
+        if (!left_buf || !root_buf) return DB_ERROR;
 
-        current_page = internal->children[child_index];
-        node = pager_get_page(tree->pager, current_page);
-        header = (NodeHeader *)node;
+        memcpy(left_buf, root_buf, tree->pager->page_size);
+        ((NodeHeader *)left_buf)->is_root = 0;
+        ((NodeHeader *)left_buf)->parent = root_page;
+
+        memset(root_buf, 0, tree->pager->page_size);
+        InternalNode *new_root = (InternalNode *)root_buf;
+        new_root->header.type = NODE_INTERNAL;
+        new_root->header.is_root = 1;
+        new_root->header.parent = INVALID_PAGE;
+        new_root->keys[0] = res.promote_key;
+        new_root->children[0] = left_page;
+        new_root->children[1] = res.new_page;
+        new_root->num_keys = 1;
+
+        void *right = pager_get_page(tree->pager, res.new_page);
+        if (right) ((NodeHeader *)right)->parent = root_page;
+
+        // root_page_num stays the same (page 0).
     }
 
-    LeafNode *leaf = (LeafNode *)node;
-
-    if (leaf->num_cells >= LEAF_NODE_MAX_CELLS) {
-        DB_Result result = split_leaf_node(tree, leaf, current_page);
-        if (result != DB_SUCCESS) return result;
-        return btree_insert(tree, key, value);
-    }
-
-    return leaf_node_insert(leaf, key, value);
+    return DB_SUCCESS;
 }
 
 DB_Result btree_find(BTree *tree, uint32_t key, uint64_t *value) {
@@ -228,7 +271,7 @@ DB_Result btree_find(BTree *tree, uint32_t key, uint64_t *value) {
         InternalNode *internal = (InternalNode *)node;
 
         int child_index = 0;
-        while (child_index < internal->num_keys && key >= internal->keys[child_index]) {
+        while (child_index < (int)internal->num_keys && key >= internal->keys[child_index]) {
             child_index++;
         }
 
@@ -240,7 +283,7 @@ DB_Result btree_find(BTree *tree, uint32_t key, uint64_t *value) {
 
     LeafNode *leaf = (LeafNode *)node;
 
-    for (int i = 0; i < leaf->num_cells; i++) {
+    for (int i = 0; i < (int)leaf->num_cells; i++) {
         if (leaf->keys[i] == key) {
             *value = leaf->values[i];
             return DB_SUCCESS;
@@ -261,7 +304,7 @@ DB_Result btree_delete(BTree *tree, uint32_t key) {
         InternalNode *internal = (InternalNode *)node;
 
         int child_index = 0;
-        while (child_index < internal->num_keys && key >= internal->keys[child_index]) {
+        while (child_index < (int)internal->num_keys && key >= internal->keys[child_index]) {
             child_index++;
         }
 
@@ -273,7 +316,7 @@ DB_Result btree_delete(BTree *tree, uint32_t key) {
     LeafNode *leaf = (LeafNode *)node;
 
     int found_index = -1;
-    for (int i = 0; i < leaf->num_cells; i++) {
+    for (int i = 0; i < (int)leaf->num_cells; i++) {
         if (leaf->keys[i] == key) {
             found_index = i;
             break;
@@ -284,7 +327,7 @@ DB_Result btree_delete(BTree *tree, uint32_t key) {
         return DB_NOT_FOUND;
     }
 
-    for (int i = found_index; i < leaf->num_cells - 1; i++) {
+    for (int i = found_index; i < (int)leaf->num_cells - 1; i++) {
         leaf->keys[i] = leaf->keys[i + 1];
         leaf->values[i] = leaf->values[i + 1];
     }
@@ -295,34 +338,131 @@ DB_Result btree_delete(BTree *tree, uint32_t key) {
     return DB_SUCCESS;
 }
 
-uint32_t btree_count_keys(BTree *tree) {
-    if (!tree) return 0;
-    uint32_t count = 0;
-
-    void *root = pager_get_page(tree->pager, tree->root_page_num);
-    NodeHeader *header = (NodeHeader *)root;
+static uint32_t count_keys_recursive(BTree *tree, page_num_t page_num) {
+    void *node = pager_get_page(tree->pager, page_num);
+    if (!node) return 0;
+    NodeHeader *header = (NodeHeader *)node;
 
     if (header->type == NODE_LEAF) {
-        count = ((LeafNode *)root)->num_cells;
-    } else {
-        void *node = root;
-        while (((NodeHeader *)node)->type == NODE_INTERNAL) {
-            InternalNode *internal = (InternalNode *)node;
-            node = pager_get_page(tree->pager, internal->children[0]);
-        }
-        count = ((LeafNode *)node)->num_cells;
+        return ((LeafNode *)node)->num_cells;
     }
 
+    InternalNode *internal = (InternalNode *)node;
+    uint32_t count = 0;
+    for (uint32_t i = 0; i <= internal->num_keys; i++) {
+        count += count_keys_recursive(tree, internal->children[i]);
+    }
     return count;
+}
+
+uint32_t btree_count_keys(BTree *tree) {
+    if (!tree) return 0;
+    if (tree->pager->num_pages == 0) return 0;
+    return count_keys_recursive(tree, tree->root_page_num);
+}
+
+static uint32_t node_height(BTree *tree, page_num_t page_num) {
+    void *node = pager_get_page(tree->pager, page_num);
+    if (!node) return 0;
+    NodeHeader *header = (NodeHeader *)node;
+    if (header->type == NODE_LEAF) return 1;
+
+    InternalNode *internal = (InternalNode *)node;
+    uint32_t max_child = 0;
+    for (uint32_t i = 0; i <= internal->num_keys; i++) {
+        uint32_t h = node_height(tree, internal->children[i]);
+        if (h > max_child) max_child = h;
+    }
+    return 1 + max_child;
+}
+
+uint32_t btree_height(const BTree *tree) {
+    if (!tree || !tree->pager) return 0;
+    if (tree->pager->num_pages == 0) return 0;
+    return node_height((BTree *)tree, tree->root_page_num);
 }
 
 struct BTreeCursor {
     BTree *tree;
     page_num_t *path_pages;
     int *path_indices;
-    int depth;
+    int depth;   // index of the leaf level in the path (= height - 1)
     int valid;
 };
+
+// Descend from `page_num` (at path `level`) to the leftmost leaf.
+static DB_Result descend_left(BTreeCursor *cursor, page_num_t page_num, int level) {
+    if (level >= 32) return DB_ERROR;
+    void *node = pager_get_page(cursor->tree->pager, page_num);
+    if (!node) return DB_ERROR;
+
+    while (((NodeHeader *)node)->type == NODE_INTERNAL) {
+        InternalNode *internal = (InternalNode *)node;
+        cursor->path_pages[level] = page_num;
+        cursor->path_indices[level] = 0;
+        level++;
+        if (level >= 32) return DB_ERROR;
+        page_num = internal->children[0];
+        node = pager_get_page(cursor->tree->pager, page_num);
+        if (!node) return DB_ERROR;
+    }
+
+    cursor->path_pages[level] = page_num;
+    cursor->path_indices[level] = 0;
+    cursor->depth = level;
+    return DB_SUCCESS;
+}
+
+// Descend from `page_num` (at path `level`) to the rightmost leaf.
+static DB_Result descend_right(BTreeCursor *cursor, page_num_t page_num, int level) {
+    if (level >= 32) return DB_ERROR;
+    void *node = pager_get_page(cursor->tree->pager, page_num);
+    if (!node) return DB_ERROR;
+
+    while (((NodeHeader *)node)->type == NODE_INTERNAL) {
+        InternalNode *internal = (InternalNode *)node;
+        cursor->path_pages[level] = page_num;
+        cursor->path_indices[level] = (int)internal->num_keys;
+        level++;
+        if (level >= 32) return DB_ERROR;
+        page_num = internal->children[internal->num_keys];
+        node = pager_get_page(cursor->tree->pager, page_num);
+        if (!node) return DB_ERROR;
+    }
+
+    cursor->path_pages[level] = page_num;
+    cursor->path_indices[level] = (int)((LeafNode *)node)->num_cells - 1;
+    cursor->depth = level;
+    return DB_SUCCESS;
+}
+
+// Move the cursor path to the next leaf in key order (may be empty).
+static DB_Result move_to_next_leaf(BTreeCursor *cursor) {
+    for (int d = cursor->depth - 1; d >= 0; d--) {
+        InternalNode *internal = get_internal_node(cursor->tree->pager, cursor->path_pages[d]);
+        if (!internal) return DB_ERROR;
+        if (cursor->path_indices[d] + 1 <= (int)internal->num_keys) {
+            cursor->path_indices[d] += 1;
+            page_num_t child = internal->children[cursor->path_indices[d]];
+            return descend_left(cursor, child, d + 1);
+        }
+    }
+    return DB_NOT_FOUND;
+}
+
+// Move the cursor path to the previous leaf in key order (may be empty).
+static DB_Result move_to_prev_leaf(BTreeCursor *cursor) {
+    for (int d = cursor->depth - 1; d >= 0; d--) {
+        InternalNode *internal = get_internal_node(cursor->tree->pager, cursor->path_pages[d]);
+        if (!internal) return DB_ERROR;
+        if (cursor->path_indices[d] - 1 >= 0) {
+            cursor->path_indices[d] -= 1;
+            page_num_t child = internal->children[cursor->path_indices[d]];
+            return descend_right(cursor, child, d + 1);
+        }
+    }
+    return DB_NOT_FOUND;
+}
 
 BTreeCursor *btree_cursor_create(BTree *tree) {
     if (!tree) return NULL;
@@ -331,201 +471,172 @@ BTreeCursor *btree_cursor_create(BTree *tree) {
     cursor->tree = tree;
     cursor->path_pages = malloc(32 * sizeof(page_num_t));
     cursor->path_indices = malloc(32 * sizeof(int));
+    if (!cursor->path_pages || !cursor->path_indices) {
+        free(cursor->path_pages);
+        free(cursor->path_indices);
+        free(cursor);
+        return NULL;
+    }
     cursor->depth = 0;
     cursor->valid = 0;
     return cursor;
 }
 
-static DB_Result cursor_goto_leaf(BTreeCursor *cursor, page_num_t page_num) {
-    void *node = pager_get_page(cursor->tree->pager, page_num);
-    if (!node) return DB_ERROR;
-    NodeHeader *header = (NodeHeader *)node;
-
-    cursor->depth = 0;
-
-    while (header->type == NODE_INTERNAL) {
-        InternalNode *internal = (InternalNode *)node;
-        cursor->path_pages[cursor->depth] = page_num;
-        cursor->path_indices[cursor->depth] = 0;
-        cursor->depth++;
-
-        page_num = internal->children[0];
-        node = pager_get_page(cursor->tree->pager, page_num);
-        if (!node) return DB_ERROR;
-        header = (NodeHeader *)node;
-    }
-
-    cursor->path_pages[cursor->depth] = page_num;
-    cursor->path_indices[cursor->depth] = 0;
-
-    return DB_SUCCESS;
-}
-
 DB_Result btree_cursor_first(BTreeCursor *cursor) {
     if (!cursor) return DB_ERROR;
-    DB_Result r = cursor_goto_leaf(cursor, cursor->tree->root_page_num);
+    DB_Result r = descend_left(cursor, cursor->tree->root_page_num, 0);
     if (r != DB_SUCCESS) return r;
 
-    LeafNode *leaf = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
-    if (leaf->num_cells == 0) {
-        cursor->valid = 0;
-        return DB_NOT_FOUND;
+    for (;;) {
+        LeafNode *leaf = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
+        if (!leaf) return DB_ERROR;
+        if (leaf->num_cells > 0) {
+            cursor->path_indices[cursor->depth] = 0;
+            cursor->valid = 1;
+            return DB_SUCCESS;
+        }
+        r = move_to_next_leaf(cursor);
+        if (r != DB_SUCCESS) { cursor->valid = 0; return DB_NOT_FOUND; }
     }
-
-    cursor->path_indices[cursor->depth] = 0;
-    cursor->valid = 1;
-    return DB_SUCCESS;
 }
 
 DB_Result btree_cursor_last(BTreeCursor *cursor) {
     if (!cursor) return DB_ERROR;
+    DB_Result r = descend_right(cursor, cursor->tree->root_page_num, 0);
+    if (r != DB_SUCCESS) return r;
+
+    for (;;) {
+        LeafNode *leaf = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
+        if (!leaf) return DB_ERROR;
+        if (leaf->num_cells > 0) {
+            cursor->path_indices[cursor->depth] = (int)leaf->num_cells - 1;
+            cursor->valid = 1;
+            return DB_SUCCESS;
+        }
+        r = move_to_prev_leaf(cursor);
+        if (r != DB_SUCCESS) { cursor->valid = 0; return DB_NOT_FOUND; }
+    }
+}
+
+DB_Result btree_cursor_seek(BTreeCursor *cursor, uint32_t key) {
+    if (!cursor) return DB_ERROR;
 
     page_num_t page_num = cursor->tree->root_page_num;
     void *node = pager_get_page(cursor->tree->pager, page_num);
-    NodeHeader *header = (NodeHeader *)node;
+    if (!node) return DB_ERROR;
 
-    cursor->depth = 0;
-
-    while (header->type == NODE_INTERNAL) {
+    int level = 0;
+    while (((NodeHeader *)node)->type == NODE_INTERNAL) {
         InternalNode *internal = (InternalNode *)node;
-        cursor->path_pages[cursor->depth] = page_num;
-        cursor->path_indices[cursor->depth] = internal->num_keys;
-        cursor->depth++;
+        int child_index = 0;
+        while (child_index < (int)internal->num_keys &&
+               key >= internal->keys[child_index]) {
+            child_index++;
+        }
 
-        page_num = internal->children[internal->num_keys];
+        if (level >= 32) return DB_ERROR;
+        cursor->path_pages[level] = page_num;
+        cursor->path_indices[level] = child_index;
+        level++;
+
+        page_num = internal->children[child_index];
         node = pager_get_page(cursor->tree->pager, page_num);
         if (!node) return DB_ERROR;
-        header = (NodeHeader *)node;
     }
 
-    cursor->path_pages[cursor->depth] = page_num;
     LeafNode *leaf = (LeafNode *)node;
-
-    if (leaf->num_cells == 0) {
-        cursor->valid = 0;
-        return DB_NOT_FOUND;
+    int idx = 0;
+    while (idx < (int)leaf->num_cells && leaf->keys[idx] < key) {
+        idx++;
     }
 
-    cursor->path_indices[cursor->depth] = leaf->num_cells - 1;
+    cursor->path_pages[level] = page_num;
+    cursor->path_indices[level] = idx;
+    cursor->depth = level;
     cursor->valid = 1;
-    return DB_SUCCESS;
+
+    if (idx < (int)leaf->num_cells) {
+        return DB_SUCCESS;
+    }
+
+    // The target is past this leaf; advance to the next non-empty leaf.
+    for (;;) {
+        DB_Result r = move_to_next_leaf(cursor);
+        if (r != DB_SUCCESS) {
+            cursor->valid = 0;
+            return DB_NOT_FOUND;
+        }
+        LeafNode *next = get_leaf_node(cursor->tree->pager,
+                                       cursor->path_pages[cursor->depth]);
+        if (!next) {
+            cursor->valid = 0;
+            return DB_ERROR;
+        }
+        if (next->num_cells > 0) {
+            cursor->path_indices[cursor->depth] = 0;
+            cursor->valid = 1;
+            return DB_SUCCESS;
+        }
+    }
 }
 
 DB_Result btree_cursor_next(BTreeCursor *cursor) {
     if (!cursor || !cursor->valid) return DB_NOT_FOUND;
 
-    page_num_t leaf_page = cursor->path_pages[cursor->depth];
-    int idx = cursor->path_indices[cursor->depth];
-
-    LeafNode *leaf = get_leaf_node(cursor->tree->pager, leaf_page);
+    LeafNode *leaf = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
     if (!leaf) return DB_ERROR;
 
-    if (idx + 1 < leaf->num_cells) {
+    int idx = cursor->path_indices[cursor->depth];
+    if (idx + 1 < (int)leaf->num_cells) {
         cursor->path_indices[cursor->depth] = idx + 1;
         return DB_SUCCESS;
     }
 
-    if (cursor->depth == 0) {
-        cursor->valid = 0;
-        return DB_NOT_FOUND;
-    }
-
-    for (int d = cursor->depth - 1; d >= 0; d--) {
-        page_num_t p = cursor->path_pages[d];
-        int i = cursor->path_indices[d];
-
-        InternalNode *internal = get_internal_node(cursor->tree->pager, p);
-        if (!internal) return DB_ERROR;
-
-        if (i + 1 <= internal->num_keys) {
-            cursor->path_indices[d] = i + 1;
-            page_num_t next_child = internal->children[i + 1];
-            DB_Result r = cursor_goto_leaf(cursor, next_child);
-            if (r != DB_SUCCESS) {
-                cursor->valid = 0;
-                return r;
-            }
-
-            leaf = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
-            if (leaf && leaf->num_cells > 0) {
-                cursor->path_indices[cursor->depth] = 0;
-                cursor->valid = 1;
-                return DB_SUCCESS;
-            }
+    for (;;) {
+        DB_Result r = move_to_next_leaf(cursor);
+        if (r != DB_SUCCESS) { cursor->valid = 0; return DB_NOT_FOUND; }
+        LeafNode *nl = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
+        if (!nl) return DB_ERROR;
+        if (nl->num_cells > 0) {
+            cursor->path_indices[cursor->depth] = 0;
+            cursor->valid = 1;
+            return DB_SUCCESS;
         }
     }
-
-    cursor->valid = 0;
-    return DB_NOT_FOUND;
 }
 
 DB_Result btree_cursor_prev(BTreeCursor *cursor) {
     if (!cursor || !cursor->valid) return DB_NOT_FOUND;
 
-    page_num_t leaf_page = cursor->path_pages[cursor->depth];
-    int idx = cursor->path_indices[cursor->depth];
-
-    LeafNode *leaf = get_leaf_node(cursor->tree->pager, leaf_page);
+    LeafNode *leaf = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
     if (!leaf) return DB_ERROR;
 
+    int idx = cursor->path_indices[cursor->depth];
     if (idx - 1 >= 0) {
         cursor->path_indices[cursor->depth] = idx - 1;
         return DB_SUCCESS;
     }
 
-    if (cursor->depth == 0) {
-        cursor->valid = 0;
-        return DB_NOT_FOUND;
-    }
-
-    for (int d = cursor->depth - 1; d >= 0; d--) {
-        page_num_t p = cursor->path_pages[d];
-        int i = cursor->path_indices[d];
-
-        InternalNode *internal = get_internal_node(cursor->tree->pager, p);
-        if (!internal) return DB_ERROR;
-
-        if (i - 1 >= 0) {
-            cursor->path_indices[d] = i - 1;
-            page_num_t prev_child = internal->children[i - 1];
-            cursor->depth = d;
-
-            page_num_t cp = prev_child;
-            for (int dd = d + 1; ; dd++) {
-                void *cn = pager_get_page(cursor->tree->pager, cp);
-                if (!cn) return DB_ERROR;
-                NodeHeader *ch = (NodeHeader *)cn;
-
-                if (ch->type == NODE_LEAF) {
-                    cursor->path_pages[dd] = cp;
-                    leaf = get_leaf_node(cursor->tree->pager, cp);
-                    cursor->path_indices[dd] = leaf->num_cells - 1;
-                    cursor->depth = dd;
-                    cursor->valid = 1;
-                    return DB_SUCCESS;
-                } else {
-                    InternalNode *cin = (InternalNode *)cn;
-                    cursor->path_pages[dd] = cp;
-                    cursor->path_indices[dd] = cin->num_keys;
-                    cp = cin->children[cin->num_keys];
-                }
-            }
+    for (;;) {
+        DB_Result r = move_to_prev_leaf(cursor);
+        if (r != DB_SUCCESS) { cursor->valid = 0; return DB_NOT_FOUND; }
+        LeafNode *pl = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
+        if (!pl) return DB_ERROR;
+        if (pl->num_cells > 0) {
+            cursor->path_indices[cursor->depth] = (int)pl->num_cells - 1;
+            cursor->valid = 1;
+            return DB_SUCCESS;
         }
     }
-
-    cursor->valid = 0;
-    return DB_NOT_FOUND;
 }
 
 DB_Result btree_cursor_get(BTreeCursor *cursor, uint32_t *key, uint64_t *value) {
     if (!cursor || !cursor->valid) return DB_NOT_FOUND;
     if (!key || !value) return DB_ERROR;
 
-    page_num_t leaf_page = cursor->path_pages[cursor->depth];
+    LeafNode *leaf = get_leaf_node(cursor->tree->pager, cursor->path_pages[cursor->depth]);
     int idx = cursor->path_indices[cursor->depth];
-
-    LeafNode *leaf = get_leaf_node(cursor->tree->pager, leaf_page);
-    if (!leaf || idx >= leaf->num_cells) return DB_ERROR;
+    if (!leaf || idx < 0 || idx >= (int)leaf->num_cells) return DB_ERROR;
 
     *key = leaf->keys[idx];
     *value = leaf->values[idx];

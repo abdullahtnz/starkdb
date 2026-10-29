@@ -94,6 +94,42 @@
 <main>
 <div class="logs-timeline">
 
+  <article class="log-entry feature" aria-label="Version 1.3.1 release">
+    <div class="log-header">
+      <time class="log-date" datetime="2026-10-29">October 29, 2026</time>
+      <span class="log-version">v1.3.1</span>
+      <span class="log-type feature">Feature Release</span>
+    </div>
+    <h2 class="log-title">Safety, Backups, and Range Iteration</h2>
+    <div class="log-contributors">Abdullah Novruzlu</div>
+
+    <div class="log-section">
+      <div class="log-section-title added">Added</div>
+      <ul class="log-list">
+        <li class="added">Cross-process file locking on the index file (flock)</li>
+        <li class="added">stark_open_ex with structured stark_open_error_t codes</li>
+        <li class="added">stark_last_open_error for actionable open diagnostics</li>
+        <li class="added">STARK_OPEN_EXCL and STARK_OPEN_READONLY open modes</li>
+        <li class="added">stark_backup and stark_restore with temp-file + rename safety</li>
+        <li class="added">stark_foreach_range with B-tree seek for bounded iteration</li>
+        <li class="added">Python StarkDBLockedError, StarkDBCorruptError, StarkDBVersionError, StarkDBReadOnlyError</li>
+        <li class="added">Python backup(), restore() and foreach_range()</li>
+        <li class="added">C++ backup() and foreach_range() with automatic buffer growth</li>
+      </ul>
+    </div>
+
+    <div class="log-section">
+      <div class="log-section-title fixed">Changed</div>
+      <ul class="log-list">
+        <li class="fixed">Get API break: undersized buffers now return STARK_BUFFER_TOO_SMALL (-9) instead of STARK_ERROR</li>
+        <li class="fixed">stark_get / stark_get_str / cursor getters accept NULL buffers as size probes</li>
+        <li class="fixed">stark_load_binary now honors its documented in/out count capacity</li>
+        <li class="fixed">Compaction hands the file lock to the newly installed index inode</li>
+        <li class="fixed">Interrupted compaction recovery re-acquires the lock on the recovered index</li>
+      </ul>
+    </div>
+  </article>
+
   <article class="log-entry fix" aria-label="Version 1.2.0 release">
     <div class="log-header">
       <time class="log-date" datetime="2026-01-01">July 26, 2026</time>

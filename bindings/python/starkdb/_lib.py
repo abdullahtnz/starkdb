@@ -60,6 +60,16 @@ def _init_lib():
     _lib.stark_open.argtypes = [ctypes.c_char_p, ctypes.c_uint]
     _lib.stark_open.restype = ctypes.c_void_p
 
+    # stark_result_t stark_open_ex(stark_db_t** out_db, const char* path,
+    #                              uint32_t flags, int* out_err)
+    _lib.stark_open_ex.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p,
+                                   ctypes.c_uint32, ctypes.POINTER(ctypes.c_int)]
+    _lib.stark_open_ex.restype = ctypes.c_int
+
+    # const char* stark_last_open_error(void)
+    _lib.stark_last_open_error.argtypes = []
+    _lib.stark_last_open_error.restype = ctypes.c_char_p
+
     # void stark_close(stark_db_t* db)
     _lib.stark_close.argtypes = [ctypes.c_void_p]
     _lib.stark_close.restype = None
@@ -112,6 +122,13 @@ def _init_lib():
     _lib.stark_error.argtypes = [ctypes.c_void_p]
     _lib.stark_error.restype = ctypes.c_char_p
 
+    # Backup / restore
+    _lib.stark_backup.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.stark_backup.restype = ctypes.c_int
+
+    _lib.stark_restore.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    _lib.stark_restore.restype = ctypes.c_int
+
     # Cursor
     _lib.stark_cursor_create.argtypes = [ctypes.c_void_p]
     _lib.stark_cursor_create.restype = ctypes.c_void_p
@@ -134,6 +151,13 @@ def _init_lib():
 
     _lib.stark_cursor_destroy.argtypes = [ctypes.c_void_p]
     _lib.stark_cursor_destroy.restype = None
+
+    # stark_result_t stark_foreach_range(stark_db_t*, uint32_t, uint32_t,
+    #                                    stark_foreach_cb, void*)
+    _lib.stark_foreach_range.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
+                                         ctypes.c_uint32, ctypes.c_void_p,
+                                         ctypes.c_void_p]
+    _lib.stark_foreach_range.restype = ctypes.c_int
 
     # Binary
     _lib.stark_store_binary.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int,
@@ -192,6 +216,19 @@ def _init_lib():
                                       ctypes.c_void_p, ctypes.c_size_t]
     _lib.stark_get_typed.restype = ctypes.c_int
 
+    # Compaction
+    _lib.stark_compact.argtypes = [ctypes.c_void_p]
+    _lib.stark_compact.restype = ctypes.c_int
+
+    _lib.stark_compact_stats.argtypes = [ctypes.c_void_p,
+                                         ctypes.POINTER(ctypes.c_uint64),
+                                         ctypes.POINTER(ctypes.c_uint64)]
+    _lib.stark_compact_stats.restype = ctypes.c_int
+
+    # Legacy file upgrade
+    _lib.stark_upgrade_file.argtypes = [ctypes.c_char_p]
+    _lib.stark_upgrade_file.restype = ctypes.c_int
+
     return _lib
 
 
@@ -212,6 +249,23 @@ STARK_IO_ERROR = -4
 STARK_INVALID_ARG = -5
 STARK_CLOSED = -6
 STARK_MEMORY_ERROR = -7
+STARK_STALE_CURSOR = -8
+STARK_BUFFER_TOO_SMALL = -9
+
+# Open flags
+STARK_OPEN_CREATE = 0
+STARK_OPEN_EXCL = 1
+STARK_OPEN_READONLY = 2
+
+# stark_open_error_t
+STARK_OPEN_OK = 0
+STARK_OPEN_ERR_LOCKED = 1
+STARK_OPEN_ERR_NOT_FOUND = 2
+STARK_OPEN_ERR_READONLY = 3
+STARK_OPEN_ERR_CORRUPT = 4
+STARK_OPEN_ERR_VERSION = 5
+STARK_OPEN_ERR_IO = 6
+STARK_OPEN_ERR_INVALID_ARG = 7
 
 
 def _check_result(result):

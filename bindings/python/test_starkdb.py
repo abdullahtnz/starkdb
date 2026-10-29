@@ -16,7 +16,10 @@ os.makedirs(test_dir, exist_ok=True)
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "bindings", "python"))
 
-from starkdb import Database, StarkDBNotFound, StarkDBError
+from starkdb import (
+    Database, StarkDBNotFound, StarkDBError, StarkDBLockedError,
+    StarkDBCorruptError, restore,
+)
 
 TEST_DB = os.path.join(test_dir, "testdb")
 
@@ -80,12 +83,11 @@ def test_iteration():
     print("=" * 60)
 
     db = Database(TEST_DB)
-    # Clean up from previous test
-    for k in range(1, 20):
-        try:
-            db.delete(k)
-        except StarkDBNotFound:
-            pass
+    # Clean up from previous test. NOTE: also remove hashed string keys
+    # (e.g. the "player_hp" string key left by TEST 1), otherwise iteration
+    # counts them and this assertion is wrong.
+    for k in list(db.keys()):
+        db.delete(k)
     db.sync()
 
     # Insert test data
@@ -267,6 +269,93 @@ def test_type_system():
     print("TEST 8: ALL PASSED\n")
 
 
+def test_new_features():
+    print("=" * 60)
+    print("TEST 9: Locks, Backup/Restore, Range Iteration, Large Values")
+    print("=" * 60)
+
+    lock_path = os.path.join(test_dir, "lockdb")
+    for suffix in ("", ".idx", ".dat"):
+        try:
+            os.remove(lock_path + suffix)
+        except OSError:
+            pass
+    db = Database(lock_path)
+    db.put(1, b"locked")
+    try:
+        Database(lock_path)
+        assert False, "second open should raise StarkDBLockedError"
+    except StarkDBLockedError:
+        pass
+    db.close()
+    print("PASS: locked database raises StarkDBLockedError")
+
+    corrupt = os.path.join(test_dir, "corrupt")
+    with open(corrupt + ".idx", "wb") as f:
+        f.write(b"NOTSTARK" + b"\x00" * 8)
+    with open(corrupt + ".dat", "wb") as f:
+        f.write(b"NOTSTARK" + b"\x00" * 8)
+    try:
+        Database(corrupt)
+        assert False, "corrupt database should raise StarkDBCorruptError"
+    except StarkDBCorruptError:
+        pass
+    print("PASS: corrupt database raises StarkDBCorruptError")
+
+    src = os.path.join(test_dir, "backup_src")
+    bak = os.path.join(test_dir, "backup_copy")
+    restored = os.path.join(test_dir, "backup_restored")
+    for base in (src, bak, restored):
+        for suffix in ("", ".idx", ".dat", ".idx.tmp", ".dat.tmp"):
+            try:
+                os.remove(base + suffix)
+            except OSError:
+                pass
+
+    db = Database(src)
+    db.put(1, b"hello")
+    db.put(2, b"world")
+    db.backup(bak)
+    db.close()
+    restore(bak, restored)
+    rdb = Database(restored)
+    assert rdb.get(1) == b"hello" and rdb.get(2) == b"world"
+    rdb.close()
+    print("PASS: backup and restore round-trip")
+
+    rng = os.path.join(test_dir, "range")
+    for suffix in ("", ".idx", ".dat"):
+        try:
+            os.remove(rng + suffix)
+        except OSError:
+            pass
+    db = Database(rng)
+    base = 1_000_000
+    for i in range(5):
+        db.put(base + i, f"v{i}".encode())
+    pairs = list(db.foreach_range(base, base + 5))
+    assert [k for k, _ in pairs] == [base + i for i in range(5)]
+    assert [v for _, v in pairs] == [f"v{i}".encode() for i in range(5)]
+    assert list(db.foreach_range(base, base)) == []
+    db.close()
+    print("PASS: foreach_range")
+
+    big = os.path.join(test_dir, "big")
+    for suffix in ("", ".idx", ".dat"):
+        try:
+            os.remove(big + suffix)
+        except OSError:
+            pass
+    db = Database(big)
+    payload = b"x" * 60000
+    db.put(9, payload)
+    assert db.get(9) == payload
+    db.close()
+    print("PASS: large value get")
+
+    print("TEST 9: ALL PASSED\n")
+
+
 if __name__ == "__main__":
     print()
     print("*" * 60)
@@ -283,6 +372,7 @@ if __name__ == "__main__":
         test_context_manager()
         test_stats()
         test_type_system()
+        test_new_features()
 
         print("*" * 60)
         print("  ALL TESTS PASSED!")

@@ -1,0 +1,419 @@
+# STARKDB TIER A — Items 32, 33, 34, 35, 36
+
+## Context
+
+STARKDB is an embedded C99 key-value database with a B-tree index. Items 1, 2, 3, 4, 5, 9, 11, 13 are already applied (real transactions, compaction, accurate stats, explicit dtype, type-deletion cleanup, C++ offset fix, cursor invalidation, file-format version header). Those changes are in place and working. Read `CONTEXT.md` for full architecture.
+
+Key facts you must respect:
+
+- A database is TWO files: `<name>.idx` (B-tree pages) and `<name>.dat` (append-only data blocks). Both begin with a 16-byte header (`HEADER_SIZE = 16` in `core/src/constants.h`, from item 13).
+- Page size is 64 KB (`PAGE_SIZE` in `core/src/constants.h`).
+- Data addresses are `(page << 32) | offset` — see `MAKE_ADDR` in `storage.h`.
+- Result codes are in `stark_result_t` (`core/include/stark.h`). `STARK_OK = 0`, negative values on error. `STARK_STALE_CURSOR = -8` (item 11).
+- `struct stark_db` is in `core/src/database.h`. It holds the pager, storage, btree, transaction state, and `mod_count` (item 11).
+- `stark_open` is in `core/src/database_api.c`.
+- C++ binding: `bindings/cpp/stark.hpp`. Python binding: `bindings/python/starkdb/` (pure ctypes).
+- `db_touch(db)` (item 11) increments `mod_count`; called at the top of every mutator.
+
+Rules for all changes:
+
+1. Compile with `-Wall -Wextra`; fix all warnings in touched files.
+2. Do not break existing tests. If a test is wrong, say so; do not silently "fix" it.
+3. Every new public function needs a doc comment in `stark.h` matching existing style.
+4. Every new function returns `stark_result_t` and sets `db->error_msg` on failure.
+5. Do not remove or change existing declarations in public headers — only add.
+6. Do not invent API methods that don't exist. If a C function you need is missing from `stark.h`, say so explicitly.
+7. Produce complete, compilable file contents, not "add this snippet." If a file is large and only part changes, still give the whole file.
+
+---
+
+## ITEM 32 — File lock in `stark_open`
+
+### Problem
+
+Two `stark_open` calls on the same DB path cause silent corruption (concurrent writes to the same files, no OS-level exclusion). This is the most common real-world failure mode — user double-clicks the app, corrupts their save.
+
+### Required behavior
+
+- `stark_open(db, path, flags)` acquires an **exclusive** `flock()` on `<path>.idx`.
+- If the lock cannot be acquired (another process holds it), return NULL and set a global last-open-error describing the situation. Do NOT block forever.
+- The lock is held for the lifetime of the `stark_db_t` handle and released in `stark_close` (or on process exit, automatically via `flock`).
+- A new function `stark_open_ex(db, path, flags, stark_open_error_t* err)` allows programmatic error inspection.
+- New flags in `stark.h`:
+  - `STARK_OPEN_CREATE  = 0x0` (default: create if missing) — same as current behavior
+  - `STARK_OPEN_EXCL    = 0x1` (fail if the DB does not exist)
+  - `STARK_OPEN_READONLY= 0x2` (acquire a **shared** `flock()`, reject all writes at the API layer)
+- Existing `stark_open(db, path, flags)` signature is preserved. The current 3rd argument (currently ignored, see §18.12) now maps onto the flags above. `flags=0` means `STARK_OPEN_CREATE`.
+- New function `const char* stark_last_open_error(void)` returns a static string describing the most recent failed `stark_open` (or NULL if the last open succeeded). **Document that this is not thread-safe** (single static buffer).
+
+### Design notes
+
+1. **flock vs fcntl**: use `flock(fd, LOCK_EX | LOCK_NB)` on the `.idx` file. `LOCK_NB` means non-blocking — if another process holds it, fail immediately rather than hang. Simpler than `fcntl`, works on Linux/macOS/BSD. For Windows, wrap in `pager.c` with `#ifdef _WIN32` using `LockFileEx`. If you don't want to support Windows right now, put `#ifndef _WIN32` around the flock call and emit a compile-time `#warning "file locking not implemented on this platform"`.
+
+2. **Why `.idx`, not `.dat`**: `.idx` is always opened first and always exists for a valid DB. Locking `.idx` is sufficient to serialize entire DB access. Locking both is redundant.
+
+3. **Release on close**: `flock` is released automatically on `fclose` / `close`. No manual `LOCK_UN` needed. Verify by reading `pager_close`.
+
+4. **Read-only mode semantics**: shared `flock(fd, LOCK_SH | LOCK_NB)`. A read-only handle can coexist with another read-only handle, but not with a writer. All mutator functions (`stark_put`, `stark_add`, `stark_delete`, `stark_put_str`, `stark_del_str`, `stark_add_typed`, `stark_undefine_type`, `stark_store_binary`, `stark_store_columns`, `stark_put_batch`, `stark_compact`, `stark_define_type`, `stark_begin`) must check `db->is_readonly` at entry and return `STARK_ERROR("database opened read-only")`. For `stark_begin`, return `STARK_ERROR` before touching transaction state.
+
+5. **Add to `struct stark_db`**:
+   ```c
+   int lock_fd;          // fd of .idx for flock, or -1
+   int is_readonly;      // 1 if opened STARK_OPEN_READONLY
+   ```
+
+6. **Do not lock during `stark_compact`** — it uses temp file renames. The original handle keeps the lock; the temp files are separate. If a second process opens during compaction, it acquires the lock on the (about-to-be-renamed) `.idx`; after rename, its lock refers to a file with the old inode. This is a **known limitation**: document that compaction must be done by the sole process holding the DB.
+
+7. **`stark_open_error_t` enum** (new in `stark.h`):
+   ```c
+   typedef enum {
+       STARK_OPEN_OK              = 0,
+       STARK_OPEN_ERR_LOCKED      = 1,   // held by another process
+       STARK_OPEN_ERR_NOT_FOUND   = 2,   // STARK_OPEN_EXCL and DB missing
+       STARK_OPEN_ERR_READONLY    = 3,   // STARK_OPEN_EXCL on a read-only file
+       STARK_OPEN_ERR_CORRUPT     = 4,   // bad magic or size
+       STARK_OPEN_ERR_VERSION     = 5,   // file version too new
+       STARK_OPEN_ERR_IO          = 6,   // permission, disk full, etc.
+       STARK_OPEN_ERR_INVALID_ARG = 7,   // NULL path, etc.
+   } stark_open_error_t;
+   ```
+
+8. **Error message format** (`stark_last_open_error()` returns something actionable):
+   - `"database is locked by another process"`
+   - `"cannot open <path>.idx: <strerror(errno)>"`
+   - `"file version 2 is newer than supported version 1"`
+   - `"not a STARKDB file (missing magic)"`
+   - `"database does not exist (STARK_OPEN_EXCL)"`
+
+### Files to touch
+
+- `core/include/stark.h` — declare `stark_last_open_error`, define `STARK_OPEN_*` flags and `stark_open_error_t`, declare `stark_open_ex`, update `stark_open` doc.
+- `core/src/database.h` — add `lock_fd`, `is_readonly` to `struct stark_db`.
+- `core/src/database_api.c` — `stark_open` acquires lock; new `stark_open_ex`; `stark_close` closes `lock_fd`; all mutators check `is_readonly`.
+- `core/src/pager.c` / `.h` — expose a helper `pager_try_lock(FILE* f, int exclusive, int* out_fd)`. Locking happens in `database_api.c` before calling `pager_open` on `.idx`. **Explain your choice of placement in a comment.**
+- `bindings/python/starkdb/_lib.py` — add ctypes signature for `stark_open_ex` (existing `stark_open` behavior is preserved).
+- `bindings/cpp/stark.hpp` — if `Database::Database` calls `stark_open`, keep that. Optionally add a `Database::open_ex` variant.
+
+### Acceptance criteria
+
+- Two processes calling `stark_open` on the same path: second returns NULL, `stark_last_open_error()` returns a string containing `"locked"`.
+- First process closes; second process (retrying) now succeeds.
+- `stark_open_ex(db, path, STARK_OPEN_EXCL, &err)` on nonexistent path returns `STARK_ERROR`, `err == STARK_OPEN_ERR_NOT_FOUND`.
+- `STARK_OPEN_READONLY`: `stark_get` works, `stark_put` returns `STARK_ERROR` with `"database opened read-only"`.
+- Two `STARK_OPEN_READONLY` handles coexist; a writer is rejected while readers exist.
+- `stark_last_open_error()` returns NULL after successful open.
+
+### Edge cases
+
+- Process killed while holding lock: OS releases flock automatically; next open succeeds.
+- `stark_open` fails on lock: no files are left in a partial state (lock acquisition happens **before** any file modification — verify by checking that failing the lock leaves no `.idx`/`.dat` on disk).
+- Empty/corrupt path argument: return NULL, `stark_last_open_error()` returns `"invalid path"`.
+- `.idx` exists but `.dat` missing: `STARK_OPEN_ERR_CORRUPT` with message `"dat file missing"`.
+
+---
+
+## ITEM 33 — `stark_backup` and `stark_restore`
+
+### Problem
+
+Users copy `.idx` without `.dat`, or copy while writes are in flight, or copy across filesystems mid-write. Guaranteed corruption reports. No safe backup primitive exists.
+
+### Required behavior
+
+```c
+stark_result_t stark_backup(stark_db_t* db, const char* dest_prefix);
+stark_result_t stark_restore(const char* src_prefix, const char* dest_prefix);
+```
+
+- `stark_backup(db, dest_prefix)`: flushes `db` (`stark_sync`), then copies `<path>.idx` → `<dest_prefix>.idx` and `<path>.dat` → `<dest_prefix>.dat`. Both copies complete and consistent. Returns `STARK_OK` on success.
+- `stark_restore(src_prefix, dest_prefix)`: copies `<src_prefix>.idx` → `<dest_prefix>.idx` and `<src_prefix>.dat` → `<dest_prefix>.dat`. **Fails if `<dest_prefix>.idx` is locked by another process** (item 32). Succeeds if dest doesn't exist, is empty, or is a valid unlocked STARKDB file (overwrite).
+- Both functions must survive a crash: either both files are copied or neither. Do this by copying to `<dest>.idx.tmp` and `<dest>.dat.tmp`, `fsync` both, then `rename` both into place. If the process crashes between renames, a subsequent `stark_backup`/`stark_restore` detects the `.tmp` files and **deletes them and returns error "interrupted backup, retry"** (do not try to guess which side committed — too error-prone).
+
+### Design notes
+
+1. **Sync before backup**: `stark_backup` calls `stark_sync(db)` first. If sync fails, return `STARK_ERROR` and do not copy anything.
+
+2. **Copy helper**: a `static stark_result_t copy_file(const char* src, const char* dst)` that:
+   - Opens src `rb`, dst `wb`
+   - Copies in 64 KB chunks
+   - `fflush(dst)`, `fsync(fileno(dst))` before close
+   - Returns `STARK_IO_ERROR` on any failure
+   - Unlinks `dst` on failure
+
+3. **Atomic rename**: after both `.tmp` files are fsync'd, `rename` each into place. `rename` is atomic on POSIX within the same filesystem. **Document that dest must be same filesystem for atomicity; if `rename` fails with `EXDEV`, fall back to copy + unlink of source (not atomic — document this).**
+
+4. **`.tmp` collision**: if `<dest>.idx.tmp` or `<dest>.dat.tmp` exists at entry, delete it before starting (assume stale from prior crash).
+
+5. **`stark_restore` validation**:
+   - `<src>.idx` and `<src>.dat` must both exist and have valid headers (magic `"STARKDB\0"`, version ≤ current). Open both, read 16 bytes, validate, close. If invalid → `STARK_ERROR("source is not a valid STARKDB backup")`.
+   - Do NOT open as a Database (that would acquire a lock and start parsing pages). Just header-validate.
+   - If `<dest>.idx` exists: attempt `flock` non-blocking. If locked → `STARK_ERROR("destination is in use")`. If unlocked but has invalid magic → `STARK_ERROR("destination exists and is not a STARKDB file")`. If unlocked and valid → proceed with rename (overwrite).
+
+6. **`stark_restore` does not merge**: whole-database replace. Document.
+
+7. **No lock on source**: `stark_restore` doesn't take a lock on `src`. Document that if another process is actively writing `<src>`, the backup may be inconsistent. `stark_backup(db, ...)` is the safe path; `stark_restore` is for cold files only.
+
+### Files to touch
+
+- `core/include/stark.h` — declare the two functions with doc comments.
+- `core/src/database_api.c` — implement both, plus `copy_file` static helper.
+- `bindings/python/starkdb/_lib.py` — ctypes signatures.
+- `bindings/python/starkdb/database.py` — `db.backup(dest_prefix)` method.
+- `bindings/cpp/stark.hpp` — `db.backup(const std::string& dest)` method.
+
+### Acceptance criteria
+
+- `stark_backup(db, "/tmp/backup")` creates `/tmp/backup.idx` and `/tmp/backup.dat` with valid headers.
+- `stark_restore("/tmp/backup", "/tmp/restored")` creates `/tmp/restored.idx` and `.dat` with byte-identical content to `/tmp/backup.*`.
+- Opening `/tmp/restored` returns a working DB with all the same data.
+- `stark_restore` onto an existing locked DB → `STARK_ERROR`, existing DB unchanged.
+- `stark_restore` onto an existing unlocked valid DB → succeeds, replaces.
+- Kill during backup: `.tmp` files may remain; next backup call cleans them up and succeeds.
+- Kill between the two renames during backup: destination has one new file, one missing; next backup call detects `.tmp` leftover, cleans up, and retries cleanly.
+
+### Edge cases
+
+- `stark_backup` while a transaction is open: return `STARK_ERROR("cannot backup during transaction")`. (Callers should commit or rollback first.)
+- Backup of an empty DB: succeeds, both files copied.
+- `stark_restore` where `<src>` has one file but not the other: `STARK_ERROR("source is incomplete")`.
+- Destination path is a directory: `STARK_IO_ERROR`.
+
+---
+
+## ITEM 34 — `STARK_BUFFER_TOO_SMALL` result code
+
+### Problem
+
+`stark_get`, `stark_get_str`, `stark_get_typed` return `STARK_ERROR` when the caller's buffer is too small, and set `*size` to the required size. That's indistinguishable from real errors like `STARK_IO_ERROR`. Callers must use a two-call probe pattern, but the probe return value is ambiguous.
+
+### Required behavior
+
+Add `STARK_BUFFER_TOO_SMALL = -9` to `stark_result_t`. All getter functions that use the size-in/out pattern return `STARK_BUFFER_TOO_SMALL` (not `STARK_ERROR`) when the buffer is too small, and set `*size` to the required size. All other error cases continue to return `STARK_ERROR`.
+
+### Design notes
+
+1. **Which functions change**:
+   - `stark_get(db, key, buffer, &size)` — on `buffer == NULL`: currently returns `STARK_ERROR` if the key exists and sets `*size` to required size. Change to return `STARK_BUFFER_TOO_SMALL`. If key doesn't exist, still return `STARK_NOT_FOUND`.
+   - `stark_get_str(db, key, buffer, &size)` — same change.
+   - `stark_get_typed(db, type, key, output, output_size)` — if the output buffer is too small, return `STARK_BUFFER_TOO_SMALL` and set `db->error_msg` to a message with the required size. Callers can read `db->error_msg` for the size (or we add an out-param; simplest: parse from message).
+   - `stark_load_binary` / `stark_get_binary_ptr` — currently return `STARK_ERROR` on buffer too small. Change to `STARK_BUFFER_TOO_SMALL`.
+   - Cursor equivalents (`stark_cursor_get`) — same change.
+
+2. **Backward compatibility**: this is technically a **behavior change**. Existing callers checking `if (r == STARK_ERROR)` for buffer-too-small will now see `STARK_BUFFER_TOO_SMALL` and break. **Document this in the CHANGELOG as a breaking change.** If you want non-breaking: add a new `stark_get_ex` function with the new semantics and leave `stark_get` alone. **Choose one and explain the choice.**
+
+   Recommendation: **change the existing functions** and bump the major version. The current behavior is a bug (ambiguous error code), and staying compatible with a bug is not worth it.
+
+3. **Python binding**: `starkdb/database.py` `get()` currently uses a 65536-byte buffer and raises `StarkDBValueError` if too small. Change to loop with a growing buffer on `STARK_BUFFER_TOO_SMALL` — no user-visible change, cleaner code.
+
+4. **C++ binding**: `Database::get()` uses fixed 4096/8192 buffers. On `STARK_BUFFER_TOO_SMALL`, throw `stark::Error("value too large for buffer")`. Or, optionally, retry with the required size. **Recommend retry** — matches the "convenience wrapper" nature of the C++ binding.
+
+5. **Update `stark.h`** with the new enum value and a note in each getter's doc that `STARK_BUFFER_TOO_SMALL` indicates a required-size out-param.
+
+### Files to touch
+
+- `core/include/stark.h` — add enum value, update doc on getters.
+- `core/src/database_api.c` — all getters.
+- `core/src/database.c` — `stark_load_binary`, `stark_get_binary_ptr`.
+- `bindings/python/starkdb/_lib.py` — new constant.
+- `bindings/python/starkdb/database.py` — loop-with-growing-buffer for `get()`.
+- `bindings/cpp/stark.hpp` — retry-with-correct-size logic.
+
+### Acceptance criteria
+
+- `stark_get(db, k, NULL, &size)` with key existing → returns `STARK_BUFFER_TOO_SMALL`, `size` = required.
+- `stark_get(db, k, NULL, &size)` with key missing → returns `STARK_NOT_FOUND`.
+- `stark_get(db, k, small_buf, &size)` where size < needed → `STARK_BUFFER_TOO_SMALL`, `size` = required.
+- `stark_get(db, k, buf, &size)` where size >= needed → `STARK_OK`.
+- Same for `stark_get_str`, `stark_get_typed`, `stark_load_binary`, cursor variants.
+- `STARK_ERROR` still returned for actual I/O / parse failures.
+- Python `db.get()` works for values of any size (no 65 KB cap in practice).
+- C++ `Database::get()` returns values of any size (no 4096 cap).
+
+### Edge cases
+
+- `size` argument is NULL: `STARK_INVALID_ARG`.
+- Buffer is non-NULL but `size` is 0: `STARK_BUFFER_TOO_SMALL`, set required.
+- `buffer == NULL` and `*size == 0`: return `STARK_BUFFER_TOO_SMALL` with required size (probe mode).
+
+---
+
+## ITEM 35 — `stark_open_ex` with structured error detail
+
+### Problem
+
+When `stark_open` fails, callers have no way to programmatically distinguish "locked by another process" (retryable) from "corrupt file" (not retryable, needs recovery) from "wrong version" (needs upgrade) without parsing an English error string.
+
+### Required behavior
+
+```c
+typedef enum {
+    STARK_OPEN_OK              = 0,
+    STARK_OPEN_ERR_LOCKED      = 1,
+    STARK_OPEN_ERR_NOT_FOUND   = 2,
+    STARK_OPEN_ERR_READONLY    = 3,
+    STARK_OPEN_ERR_CORRUPT     = 4,
+    STARK_OPEN_ERR_VERSION     = 5,
+    STARK_OPEN_ERR_IO          = 6,
+    STARK_OPEN_ERR_INVALID_ARG = 7,
+} stark_open_error_t;
+
+stark_result_t stark_open_ex(
+    stark_db_t** out_db,
+    const char* path,
+    uint32_t flags,
+    stark_open_error_t* out_err
+);
+```
+
+- On success: `*out_db` = valid handle, `*out_err` = `STARK_OPEN_OK`, returns `STARK_OK`.
+- On failure: `*out_db` = NULL, `*out_err` = specific code, returns `STARK_ERROR`.
+- `stark_open` (existing) is implemented in terms of `stark_open_ex` internally; keep its signature and behavior identical (returns `stark_db_t*`, NULL on failure).
+
+### Design notes
+
+1. **Detailed messages**: along with `*out_err`, set a detailed message accessible via `stark_last_open_error()`. That function returns the string form; `*out_err` is the programmatic form.
+
+2. **Callers can retry logically**:
+   ```c
+   for (int i = 0; i < 5; i++) {
+       if (stark_open_ex(&db, path, 0, &err) == STARK_OK) break;
+       if (err != STARK_OPEN_ERR_LOCKED) {
+           fprintf(stderr, "open failed: %s\n", stark_last_open_error());
+           return 1;
+       }
+       sleep(1);  // retry lock
+   }
+   ```
+
+3. **Python binding**: `starkdb.Database.__init__` should translate `STARK_OPEN_ERR_LOCKED` into a new exception `StarkDBLockedError` (subclass of `StarkDBError`), `STARK_OPEN_ERR_CORRUPT` into `StarkDBCorruptError`, etc. Users can `except StarkDBLockedError:` and retry.
+
+4. **C++ binding**: `Database` constructor throws `stark::Error` with the message (unchanged behavior). Optionally add a `Database::open_ex` factory returning a variant or error code. **Skip unless you need it.**
+
+### Files to touch
+
+- `core/include/stark.h` — enum, `stark_open_ex` declaration.
+- `core/src/database_api.c` — `stark_open_ex` implementation, `stark_open` becomes a wrapper.
+- `bindings/python/starkdb/_lib.py` — ctypes signature.
+- `bindings/python/starkdb/database.py` — new exception classes, use `stark_open_ex` in `__init__`.
+- `bindings/python/starkdb/__init__.py` — export new exceptions.
+- `bindings/cpp/stark.hpp` — constructor uses `stark_open_ex` for better error messages (optional).
+
+### Acceptance criteria
+
+- `stark_open_ex(&db, path, 0, &err)` on a fresh path: returns OK, `*db != NULL`, `err == STARK_OPEN_OK`.
+- On a locked DB: `STARK_ERROR`, `err == STARK_OPEN_ERR_LOCKED`.
+- On a nonexistent path with `STARK_OPEN_EXCL`: `err == STARK_OPEN_ERR_NOT_FOUND`.
+- On a corrupt file (bad magic): `err == STARK_OPEN_ERR_CORRUPT`.
+- On a future-version file: `err == STARK_OPEN_ERR_VERSION`.
+- `stark_last_open_error()` returns descriptive text matching each case.
+- Python: `raise StarkDBLockedError` on lock, `StarkDBCorruptError` on corruption.
+- Existing `stark_open` calls in all bindings continue to work unchanged.
+
+### Edge cases
+
+- `out_db == NULL` or `out_err == NULL` or `path == NULL`: `STARK_INVALID_ARG`.
+- Calling twice with a stale DB handle: no double-lock, no leak.
+- After successful `stark_open_ex`, calling `stark_last_open_error()` returns NULL (no stale error).
+
+---
+
+## ITEM 36 — `stark_foreach_range` for numeric-key iteration
+
+### Problem
+
+Cursor iteration yields all keys in one stream, mixed numeric and djb2-hashed string keys. There is no API to iterate **only** numeric keys in a specific range, which is what applications need (e.g., "iterate all players in range 1M..2M"). Workaround (manual cursor with a filter loop) is O(all_keys) per screen — for a game with players + matches + meta, that's 10x slower than necessary, and forces awkward filter code at every call site.
+
+### Required behavior
+
+```c
+typedef int (*stark_foreach_cb)(uint32_t key, const void* value, size_t value_size, void* user);
+
+stark_result_t stark_foreach_range(
+    stark_db_t* db,
+    uint32_t key_min,      // inclusive
+    uint32_t key_max,      // exclusive
+    stark_foreach_cb cb,
+    void* user
+);
+```
+
+- Iterates all numeric keys in `[key_min, key_max)` in ascending order.
+- Calls `cb(key, value, value_size, user)` for each. `value` points into DB memory, valid only for the duration of the callback (do not hold the pointer).
+- If `cb` returns non-zero, iteration stops early and `stark_foreach_range` returns `STARK_OK`.
+- `stark_result_t` return value: `STARK_OK` on successful completion (including early-stop), `STARK_ERROR` on internal error.
+- Sets `db->error_msg` on error.
+
+### Design notes
+
+1. **Implementation**: use the existing cursor API internally. Create cursor, seek to first key >= `key_min` (`cursor_first` then `cursor_next` until >= min), iterate while `key < key_max`. Destroy cursor. ~50 lines.
+
+2. **Cursor safety**: if a write occurs during iteration, the cursor becomes stale (item 11). `stark_foreach_range` catches `STARK_STALE_CURSOR` and returns `STARK_ERROR("foreach: modified during iteration")`. Callers must not write from inside `cb`.
+
+3. **String keys in range**: djb2 hashes can fall in `[key_min, key_max)`. `stark_foreach_range` **includes** them — it's a raw numeric range on the underlying B-tree, not a filter on "was this originally a numeric key." This is the right behavior for the game (ranges are chosen to avoid hash collisions in practice), but document it clearly: `"stark_foreach_range iterates raw B-tree keys in the given numeric range, including djb2 hashes of string keys. To iterate only your own numeric keys, choose ranges that hashes are unlikely to hit."`
+
+4. **Python binding**:
+   ```python
+   def foreach_range(self, key_min: int, key_max: int) -> Iterator[Tuple[int, bytes]]:
+       # generator wrapping the C callback via a PyObject* trampoline
+   ```
+   Use `ctypes.CFUNCTYPE` to wrap a Python callable that appends to a list, then yield from that list. **Do not call Python code from inside the C callback** — collect results into a list first, then yield from it. This avoids Python C-API re-entrancy issues.
+
+5. **C++ binding**:
+   ```cpp
+   template<typename Fn>
+   void foreach_range(uint32_t key_min, uint32_t key_max, Fn&& fn);
+   ```
+   Thin template wrapper over the C callback. `Fn` receives `(uint32_t key, const void* val, size_t sz)`. May throw `stark::Error` on failure (translate from C code).
+
+### Files to touch
+
+- `core/include/stark.h` — typedef, declaration, doc.
+- `core/src/database_api.c` — implementation.
+- `bindings/python/starkdb/_lib.py` — ctypes signature.
+- `bindings/python/starkdb/database.py` — `foreach_range` generator method.
+- `bindings/cpp/stark.hpp` — template wrapper.
+
+### Acceptance criteria
+
+- Insert keys `1M+0..1M+9` (10 players), `2M+0..2M+4` (5 clubs), `3M+0..3M+2` (3 matches) plus meta counters at `10M+N`.
+- `stark_foreach_range(db, 1_000_000, 2_000_000, cb, NULL)` calls `cb` exactly 10 times.
+- `stark_foreach_range(db, 2_000_000, 3_000_000, cb, NULL)` calls `cb` exactly 5 times.
+- `stark_foreach_range(db, 0, UINT32_MAX, cb, NULL)` calls `cb` (total number of keys) times.
+- `cb` returning 1 stops early; `stark_foreach_range` returns `STARK_OK` with fewer calls than expected.
+- `key_min >= key_max`: returns `STARK_OK`, zero calls.
+- Python `for k, v in db.foreach_range(1_000_000, 2_000_000):` iterates correctly.
+- Writing to DB from `cb` (Python or C) → `stark_foreach_range` returns `STARK_ERROR` and iteration stops.
+
+### Edge cases
+
+- Empty range (no keys in `[min, max)`): returns `STARK_OK`, zero calls.
+- `key_min == 0` and `key_max == UINT32_MAX`: iterates all keys (including string hashes).
+- DB closed during iteration: `STARK_CLOSED`.
+
+---
+
+## ORDERING
+
+1. **Item 32 (flock)** first — independent, needed by items 33 and 35.
+2. **Item 35 (`stark_open_ex`)** second — depends on 32 (uses the error codes for locked).
+3. **Item 33 (backup/restore)** third — depends on 32 (locking the destination).
+4. **Item 34 (`STARK_BUFFER_TOO_SMALL`)** fourth — touches getters, independent of 32/33/35 but do after so tests can rely on `stark_open_ex`.
+5. **Item 36 (`foreach_range`)** last — depends on item 11 cursor invalidation, which is already in place, but do after the others so the whole API surface is stable.
+
+## FINAL TESTING REQUIREMENTS
+
+- All existing tests pass (`bindings/python/test_starkdb.py`, `ctest`).
+- New test `tests/test_lock.c` — item 32 (two-process lock, read-only semantics, flags).
+- New test `tests/test_backup.c` — item 33 (round-trip, lock during backup, `.tmp` cleanup).
+- New test `tests/test_buffer_size.c` — item 34 (probe pattern for all getters).
+- New test `tests/test_open_ex.c` — item 35 (every `stark_open_error_t` value).
+- New test `tests/test_foreach_range.c` — item 36 (ranges, early-stop, write-during-iteration).
+- `valgrind ./tests/run_all` — zero leaks, zero errors.
+- Python binding tests pass with the new exception classes and `foreach_range`.
+- C++ binding tests pass with retry-on-buffer-too-small.
+
+## STYLE
+
+Produce complete, compilable file contents, not "add this snippet." When uncertain about a starkdb behavior, ask before writing code that depends on it. If a C function you need doesn't exist in `stark.h`, say so explicitly rather than inventing it.
+
+Start with Item 32. Give me the full files to overwrite, with the changes clearly applied.

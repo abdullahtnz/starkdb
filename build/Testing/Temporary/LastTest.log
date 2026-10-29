@@ -1,0 +1,74 @@
+Start testing: Oct 29 22:46 +04
+----------------------------------------------------------
+1/2 Testing: run_all
+1/2 Test: run_all
+Command: "/home/abdullahtnz/Desktop/starkdb/tests/run_all"
+Directory: /home/abdullahtnz/Desktop/starkdb/build
+"run_all" start time: Oct 29 22:46 +04
+Output:
+----------------------------------------------------------
+STARKDB: invalid transaction sentinel '/tmp/stark_test_txn.txn' (bad magic)
+STARKDB: invalid compaction sentinel '/tmp/stark_test_compact.compact'
+[ RUN  ] header
+  header tests passed
+[  OK  ] header
+[ RUN  ] stats
+  stats tests passed
+[  OK  ] stats
+[ RUN  ] dtype
+  dtype tests passed
+[  OK  ] dtype
+[ RUN  ] txn
+  transaction tests passed
+[  OK  ] txn
+[ RUN  ] compact
+  compaction tests passed
+[  OK  ] compact
+[ RUN  ] undefine
+  undefine tests passed
+[  OK  ] undefine
+[ RUN  ] cursor_stale
+  cursor staleness tests passed
+[  OK  ] cursor_stale
+[ RUN  ] lock
+  lock tests passed
+[  OK  ] lock
+[ RUN  ] open_ex
+  open_ex tests passed
+[  OK  ] open_ex
+[ RUN  ] backup
+  backup tests passed
+[  OK  ] backup
+[ RUN  ] buffer_size
+  buffer size tests passed
+[  OK  ] buffer_size
+[ RUN  ] foreach_range
+  foreach_range tests passed
+[  OK  ] foreach_range
+
+12/12 tests passed
+<end of output>
+Test time =   0.32 sec
+----------------------------------------------------------
+Test Passed.
+"run_all" end time: Oct 29 22:46 +04
+"run_all" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/2 Testing: cpp_types
+2/2 Test: cpp_types
+Command: "/home/abdullahtnz/Desktop/starkdb/tests/test_cpp_types"
+Directory: /home/abdullahtnz/Desktop/starkdb/build
+"cpp_types" start time: Oct 29 22:46 +04
+Output:
+----------------------------------------------------------
+  C++ type interop tests passed
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"cpp_types" end time: Oct 29 22:46 +04
+"cpp_types" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 29 22:46 +04

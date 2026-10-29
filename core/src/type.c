@@ -7,55 +7,22 @@
 
 // System table prefix for storing types
 #define TYPE_KEY_PREFIX "type:"
+#define TYPE_MANIFEST_PREFIX "__type_manifest__:"
 
-// Global type ID counter (in a real DB, this would be stored in system table)
-static uint32_t next_type_id = 1;
+// Provided by database_api.c: attach an internal warning to the handle.
+extern void stark_set_error_msg(stark_db_t* db, const char* msg);
 
 // ==================== HELPER FUNCTIONS ====================
 
-static char* trim_whitespace(char* str) {
-    while (isspace((unsigned char)*str)) str++;
-    if (*str == 0) return str;
-    
-    char* end = str + strlen(str) - 1;
-    while (end > str && isspace((unsigned char)*end)) end--;
-    end[1] = '\0';
-    
-    return str;
-}
-
-static int parse_field_definition(const char* input, FieldDef* field) {
-    char field_name[64];
-    char type_str[32];
-    char size_str[32] = "";
-    
-    // Parse: name type or name type(size)
-    int matched = sscanf(input, "%63s %31[^(](%31[^)])", field_name, type_str, size_str);
-    if (matched < 2) {
-        matched = sscanf(input, "%63s %31s", field_name, type_str);
+// Deterministic type id derived from the name (djb2), so identical type
+// definitions produce byte-identical on-disk records across processes/bindings.
+static uint32_t type_name_hash(const char* s) {
+    uint32_t h = 5381;
+    int c;
+    while ((c = (unsigned char)*s++) != 0) {
+        h = ((h << 5) + h) + (uint32_t)c;
     }
-    
-    if (matched < 2) return 0;
-    
-    strncpy(field->name, field_name, 31);
-    field->name[31] = '\0';
-    field->offset = 0;  // Will be set during size calculation
-    
-    if (strcmp(type_str, "int") == 0) {
-        field->type = TYPE_INT;
-        field->size = 4;  // int is 4 bytes
-    } else if (strcmp(type_str, "string") == 0) {
-        field->type = TYPE_STRING;
-        if (strlen(size_str) > 0) {
-            field->size = atoi(size_str);
-        } else {
-            field->size = 64;  // default string size
-        }
-    } else {
-        return 0;  // unknown type
-    }
-    
-    return 1;
+    return h;
 }
 
 // ==================== TYPE CREATION ====================
@@ -74,31 +41,109 @@ stark_result_t type_create(stark_db_t* db, const char* name,
     if (stark_get_str(db, type_key, dummy, &size) == STARK_OK || size > 0) {
         return STARK_ERROR;  // Type already exists
     }
-    
-    // Calculate total size (offsets already set by type_parse_fields)
-    uint32_t total_size = 0;
-    for (uint32_t i = 0; i < field_count; i++) {
-        total_size += fields[i].size;
-    }
-    
+
     // Allocate memory for type definition
     size_t type_size = sizeof(TypeDef) + (field_count * sizeof(FieldDef));
     TypeDef* type = (TypeDef*)malloc(type_size);
     if (!type) return STARK_MEMORY_ERROR;
-    
-    // Fill type definition
-    static uint32_t next_type_id = 1;  // In real DB, this would be persistent
-    type->id = next_type_id++;
+
+    // Fill type definition. Offsets and sizes are recomputed here so every
+    // binding (CLI, C, C++, Python) produces an identical layout.
+    type->id = type_name_hash(name);
     strncpy(type->name, name, 63);
     type->name[63] = '\0';
-    type->size = total_size;
     type->field_count = field_count;
-    memcpy(type->fields, fields, field_count * sizeof(FieldDef));
-    
+
+    uint32_t offset = 0;
+    for (uint32_t i = 0; i < field_count; i++) {
+        FieldDef* dst = &type->fields[i];
+        memset(dst, 0, sizeof(FieldDef));  // zero padding for byte-identical output
+        memcpy(dst->name, fields[i].name, sizeof(dst->name));
+        dst->type = fields[i].type;
+        dst->size = (dst->type == TYPE_INT) ? 4 : fields[i].size;
+        dst->offset = offset;
+        offset += dst->size;
+    }
+    type->size = offset;
+
     // Store in database
     stark_result_t result = stark_put_str(db, type_key, type, type_size);
-    
     free(type);
+    if (result != STARK_OK) return result;
+
+    // Create an empty record manifest for this type (a single newline; empty
+    // lines are ignored when parsing). Records are appended on add_typed.
+    char manifest_key[256];
+    snprintf(manifest_key, sizeof(manifest_key), "%s%s", TYPE_MANIFEST_PREFIX, name);
+    size_t existing = 0;
+    stark_get_str(db, manifest_key, NULL, &existing);
+    if (existing == 0) {
+        stark_put_str(db, manifest_key, "\n", 1);
+    }
+
+    return STARK_OK;
+}
+
+// ==================== RECORD MANIFEST ====================
+
+// Append "<type>:<key>" to the type's manifest if not already present.
+stark_result_t type_manifest_update(stark_db_t* db, const char* type_name,
+                                    const char* record_key) {
+    if (!db || !type_name || !record_key) return STARK_INVALID_ARG;
+
+    char manifest_key[256];
+    snprintf(manifest_key, sizeof(manifest_key), "%s%s", TYPE_MANIFEST_PREFIX, type_name);
+
+    size_t size = 0;
+    stark_get_str(db, manifest_key, NULL, &size);
+
+    char* buf = NULL;
+    size_t len = 0;
+    if (size > 0) {
+        buf = malloc(size + 1);
+        if (!buf) return STARK_MEMORY_ERROR;
+        len = size;
+        if (stark_get_str(db, manifest_key, buf, &len) != STARK_OK) {
+            free(buf);
+            buf = NULL;
+            len = 0;
+        }
+    }
+
+    size_t rklen = strlen(record_key);
+    int found = 0;
+    if (buf) {
+        size_t start = 0;
+        for (size_t i = 0; i <= len; i++) {
+            if (i == len || buf[i] == '\n') {
+                size_t line_len = i - start;
+                if (line_len == rklen && memcmp(buf + start, record_key, line_len) == 0) {
+                    found = 1;
+                    break;
+                }
+                start = i + 1;
+            }
+        }
+    }
+
+    if (found) {
+        free(buf);
+        return STARK_OK;
+    }
+
+    char* nb = malloc(len + rklen + 2);
+    if (!nb) {
+        free(buf);
+        return STARK_MEMORY_ERROR;
+    }
+    if (len > 0) memcpy(nb, buf, len);
+    memcpy(nb + len, record_key, rklen);
+    nb[len + rklen] = '\n';
+    size_t nlen = len + rklen + 1;
+
+    stark_result_t result = stark_put_str(db, manifest_key, nb, nlen);
+    free(nb);
+    free(buf);
     return result;
 }
 
@@ -116,24 +161,20 @@ TypeDef* type_get(stark_db_t* db, const char* name) {
     
     // stark_get_str returns STARK_ERROR but sets size when data exists
     if (size == 0) {
-        printf("❌ Type key '%s' not found\n", type_key);
         return NULL;
     }
-    
-    printf("✅ Type key found, size=%zu bytes\n", size);
-    
+
     // Allocate buffer for type
     TypeDef* type = (TypeDef*)malloc(size);
     if (!type) return NULL;
-    
+
     // Get the actual data
     result = stark_get_str(db, type_key, type, &size);
     if (result != STARK_OK) {
-        printf("❌ Failed to get type data: %d\n", result);
-        free(type);  // ← Make sure to free on error!
+        free(type);
         return NULL;
     }
-    
+
     return type;
 }
 
@@ -141,15 +182,50 @@ TypeDef* type_get(stark_db_t* db, const char* name) {
 
 stark_result_t type_delete(stark_db_t* db, const char* name) {
     if (!db || !name) return STARK_INVALID_ARG;
-    
+
     char type_key[256];
     snprintf(type_key, sizeof(type_key), "%s%s", TYPE_KEY_PREFIX, name);
-    
-    // Delete the type definition
+
+    char manifest_key[256];
+    snprintf(manifest_key, sizeof(manifest_key), "%s%s", TYPE_MANIFEST_PREFIX, name);
+
+    // Determine whether this type has a record manifest.
+    size_t msize = 0;
+    stark_get_str(db, manifest_key, NULL, &msize);
+
+    if (msize > 0) {
+        char* buf = malloc(msize + 1);
+        if (!buf) return STARK_MEMORY_ERROR;
+
+        size_t len = msize;
+        if (stark_get_str(db, manifest_key, buf, &len) == STARK_OK) {
+            buf[len] = '\0';
+            size_t start = 0;
+            for (size_t i = 0; i <= len; i++) {
+                if (i == len || buf[i] == '\n') {
+                    size_t line_len = i - start;
+                    if (line_len > 0) {
+                        char line[512];
+                        size_t copy = line_len < sizeof(line) - 1 ? line_len : sizeof(line) - 1;
+                        memcpy(line, buf + start, copy);
+                        line[copy] = '\0';
+                        // Ignore STARK_NOT_FOUND for missing records.
+                        stark_del_str(db, line);
+                    }
+                    start = i + 1;
+                }
+            }
+        }
+        free(buf);
+        stark_del_str(db, manifest_key);
+    } else {
+        // Backward compatibility: types defined before manifests existed.
+        stark_set_error_msg(db, "warning: type has no record manifest; "
+                                "orphaned records were not deleted");
+    }
+
+    // Delete the type definition itself.
     return stark_del_str(db, type_key);
-    
-    // Note: In a real DB, you'd also delete all data of this type
-    // This would require iterating over all keys with this prefix
 }
 
 // ==================== TYPE LISTING ====================
@@ -281,7 +357,6 @@ static int parse_value(const char* value_str, uint8_t type, void* output) {
         return 1;
     } else if (type == TYPE_STRING) {
         // Remove quotes if present
-        const char* start = value_str;
         char temp[256];
         strncpy(temp, value_str, 255);
         temp[255] = '\0';
@@ -336,34 +411,68 @@ stark_result_t type_serialize(FieldDef* fields, uint32_t field_count,
     return STARK_OK;
 }
 
-stark_result_t type_deserialize(FieldDef* fields, uint32_t field_count,
-                                const void* buffer, char* output, size_t output_size) {
+stark_result_t type_deserialize_ex(FieldDef* fields, uint32_t field_count,
+                                   const void* buffer, char* output,
+                                   size_t output_size, size_t* required) {
     if (!fields || !buffer || !output) return STARK_INVALID_ARG;
-    
-    output[0] = '\0';
-    size_t pos = 0;
-    
+
+    // First pass: measure the exact output length without writing anything.
+    size_t need = 1;  // NUL terminator
     for (uint32_t i = 0; i < field_count; i++) {
         const void* src = (const char*)buffer + fields[i].offset;
-        
+        int n;
         if (fields[i].type == TYPE_INT) {
             uint32_t value = *((uint32_t*)src);
-            pos += snprintf(output + pos, output_size - pos, 
-                           "%s=%u", fields[i].name, value);
+            n = snprintf(NULL, 0, "%s=%u", fields[i].name, value);
         } else if (fields[i].type == TYPE_STRING) {
             char value[256];
-            strncpy(value, (const char*)src, fields[i].size);
-            value[fields[i].size - 1] = '\0';
-            pos += snprintf(output + pos, output_size - pos, 
-                           "%s=\"%s\"", fields[i].name, value);
+            size_t cap = fields[i].size < sizeof(value) ? fields[i].size : sizeof(value);
+            if (cap == 0) cap = 1;
+            strncpy(value, (const char*)src, cap);
+            value[cap - 1] = '\0';
+            n = snprintf(NULL, 0, "%s=\"%s\"", fields[i].name, value);
+        } else {
+            n = 0;
         }
-        
-        if (i < field_count - 1 && pos < output_size - 1) {
+        if (n < 0) return STARK_ERROR;
+        need += (size_t)n;
+        if (i < field_count - 1) need += 1;
+    }
+
+    if (required) *required = need;
+    if (output_size < need) {
+        if (output_size > 0) output[0] = '\0';
+        return STARK_BUFFER_TOO_SMALL;
+    }
+
+    // Second pass: write, knowing it fits.
+    size_t pos = 0;
+    for (uint32_t i = 0; i < field_count; i++) {
+        const void* src = (const char*)buffer + fields[i].offset;
+        if (fields[i].type == TYPE_INT) {
+            uint32_t value = *((uint32_t*)src);
+            pos += (size_t)snprintf(output + pos, output_size - pos,
+                                    "%s=%u", fields[i].name, value);
+        } else if (fields[i].type == TYPE_STRING) {
+            char value[256];
+            size_t cap = fields[i].size < sizeof(value) ? fields[i].size : sizeof(value);
+            if (cap == 0) cap = 1;
+            strncpy(value, (const char*)src, cap);
+            value[cap - 1] = '\0';
+            pos += (size_t)snprintf(output + pos, output_size - pos,
+                                    "%s=\"%s\"", fields[i].name, value);
+        }
+        if (i < field_count - 1) {
             output[pos++] = ' ';
         }
     }
-    
+
     return STARK_OK;
+}
+
+stark_result_t type_deserialize(FieldDef* fields, uint32_t field_count,
+                                const void* buffer, char* output, size_t output_size) {
+    return type_deserialize_ex(fields, field_count, buffer, output, output_size, NULL);
 }
 
 // This would require implementing cursor functionality in your B-tree

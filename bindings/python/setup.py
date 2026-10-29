@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-version = "1.1.0"
+version = "2.0.0"
 version_file = os.path.join(here, "starkdb", "__init__.py")
 if os.path.exists(version_file):
     with open(version_file) as f:

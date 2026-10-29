@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/test_cpp_types.dir/tests/test_cpp_types.cpp.o -o /home/abdullahtnz/Desktop/starkdb/tests/test_cpp_types  -Wl,-rpath,/home/abdullahtnz/Desktop/starkdb/build libstark.so 

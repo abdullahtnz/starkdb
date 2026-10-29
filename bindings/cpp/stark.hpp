@@ -5,7 +5,9 @@
 #include <vector>
 #include <stdexcept>
 #include <cstring>
+#include <cstdio>
 #include <iostream>
+#include <exception>
 
 extern "C" {
     #include <stark.h>
@@ -72,11 +74,14 @@ private:
 public:
     // ========== Constructor / Destructor ==========
     
-    explicit Database(const std::string& path) {
-        db = stark_open(path.c_str(), 0);
-        if (!db) {
-            throw Error("Failed to open database: " + path);
+    explicit Database(const std::string& path, uint32_t flags = 0) {
+        stark_db_t* handle = nullptr;
+        stark_open_error_t err = STARK_OPEN_ERR_INVALID_ARG;
+        if (stark_open_ex(&handle, path.c_str(), flags, &err) != STARK_OK || !handle) {
+            const char* msg = stark_last_open_error();
+            throw Error(msg ? msg : ("Failed to open database: " + path));
         }
+        db = handle;
     }
     
     ~Database() {
@@ -118,17 +123,23 @@ public:
     
     std::string get(uint32_t key) {
         check_db();
-        char buffer[4096];
-        size_t size = sizeof(buffer);
-        stark_result_t r = stark_get(db, key, buffer, &size);
-        
-        if (r == STARK_OK) {
-            return std::string(buffer, size);
-        } else if (r == STARK_NOT_FOUND) {
-            return "";
-        } else {
+        size_t size = 0;
+        stark_result_t r = stark_get(db, key, nullptr, &size);
+        if (r == STARK_NOT_FOUND) return "";
+        if (r != STARK_BUFFER_TOO_SMALL) {
             throw Error("Failed to get key " + std::to_string(key));
         }
+
+        for (int attempt = 0; attempt < 4; attempt++) {
+            std::vector<char> buffer(size > 0 ? size : 1);
+            size_t capacity = buffer.size();
+            r = stark_get(db, key, buffer.data(), &capacity);
+            if (r == STARK_OK) return std::string(buffer.data(), capacity);
+            if (r == STARK_BUFFER_TOO_SMALL) { size = capacity; continue; }
+            if (r == STARK_NOT_FOUND) return "";
+            throw Error("Failed to get key " + std::to_string(key));
+        }
+        throw Error("Value changed while reading key " + std::to_string(key));
     }
     
     std::string get(uint32_t key, const std::string& default_value) {
@@ -162,17 +173,23 @@ public:
     
     std::string get_str(const std::string& key) {
         check_db();
-        char buffer[4096];
-        size_t size = sizeof(buffer);
-        stark_result_t r = stark_get_str(db, key.c_str(), buffer, &size);
-        
-        if (r == STARK_OK) {
-            return std::string(buffer, size);
-        } else if (r == STARK_NOT_FOUND) {
-            return "";
-        } else {
+        size_t size = 0;
+        stark_result_t r = stark_get_str(db, key.c_str(), nullptr, &size);
+        if (r == STARK_NOT_FOUND) return "";
+        if (r != STARK_BUFFER_TOO_SMALL) {
             throw Error("Failed to get string key: " + key);
         }
+
+        for (int attempt = 0; attempt < 4; attempt++) {
+            std::vector<char> buffer(size > 0 ? size : 1);
+            size_t capacity = buffer.size();
+            r = stark_get_str(db, key.c_str(), buffer.data(), &capacity);
+            if (r == STARK_OK) return std::string(buffer.data(), capacity);
+            if (r == STARK_BUFFER_TOO_SMALL) { size = capacity; continue; }
+            if (r == STARK_NOT_FOUND) return "";
+            throw Error("Failed to get string key: " + key);
+        }
+        throw Error("Value changed while reading string key: " + key);
     }
     
     bool remove_str(const std::string& key) {
@@ -194,12 +211,34 @@ public:
     
     void define_type(const std::string& name, const std::vector<Field>& fields) {
         check_db();
-        
-        std::vector<FieldDef> c_fields;
-        for (const auto& f : fields) {
-            c_fields.push_back(f.to_c());
+
+        if (fields.empty()) {
+            throw Error("type must have at least one field");
         }
-        
+
+        std::vector<FieldDef> c_fields;
+        c_fields.reserve(fields.size());
+        uint32_t offset = 0;
+
+        for (const auto& f : fields) {
+            if (f.type == TYPE_STRING && f.size < 1) {
+                throw Error("string field size must be >= 1");
+            }
+            for (const auto& existing : c_fields) {
+                if (f.name == existing.name) {
+                    throw Error("duplicate field name: " + f.name);
+                }
+            }
+
+            FieldDef def = f.to_c();
+            def.offset = offset;
+            if (f.type == TYPE_INT) {
+                def.size = 4;  // ints are always 4 bytes (matches CLI/Python)
+            }
+            offset += def.size;
+            c_fields.push_back(def);
+        }
+
         stark_result_t r = stark_define_type(db, name.c_str(), 
                                              c_fields.data(), c_fields.size());
         if (r != STARK_OK) {
@@ -223,16 +262,28 @@ public:
     
     std::string get_typed(const std::string& type, uint32_t key) {
         check_db();
-        char buffer[8192];
-        stark_result_t r = stark_get_typed(db, type.c_str(), key, buffer, sizeof(buffer));
-        
-        if (r == STARK_OK) {
-            return std::string(buffer);
-        } else if (r == STARK_NOT_FOUND) {
-            return "";
-        } else {
-            throw Error("Failed to get typed data");
+        size_t capacity = 8192;
+        for (int attempt = 0; attempt < 8; attempt++) {
+            std::vector<char> buffer(capacity + 1);
+            stark_result_t r = stark_get_typed(
+                db, type.c_str(), key, buffer.data(), capacity
+            );
+            if (r == STARK_OK) return std::string(buffer.data());
+            if (r == STARK_NOT_FOUND) return "";
+            if (r != STARK_BUFFER_TOO_SMALL) {
+                throw Error("Failed to get typed data");
+            }
+
+            size_t required = 0;
+            std::string err = get_last_error();
+            if (std::sscanf(err.c_str(), "buffer too small: required %zu bytes",
+                            &required) == 1 && required > capacity) {
+                capacity = required;
+            } else {
+                capacity *= 2;
+            }
         }
+        throw Error("Typed value changed while reading");
     }
     
     std::vector<Field> describe_type(const std::string& name) {
@@ -303,6 +354,59 @@ public:
         stark_result_t r = stark_sync(db);
         if (r != STARK_OK) {
             throw Error("Failed to sync database");
+        }
+    }
+
+    void compact() {
+        check_db();
+        stark_result_t r = stark_compact(db);
+        if (r != STARK_OK) {
+            throw Error("Failed to compact database");
+        }
+    }
+
+    void compact_stats(uint64_t& before_bytes, uint64_t& after_bytes) {
+        check_db();
+        stark_result_t r = stark_compact_stats(db, &before_bytes, &after_bytes);
+        if (r != STARK_OK) {
+            throw Error("Failed to compact database");
+        }
+    }
+
+    void backup(const std::string& dest_prefix) {
+        check_db();
+        stark_result_t r = stark_backup(db, dest_prefix.c_str());
+        if (r != STARK_OK) {
+            throw Error(get_last_error());
+        }
+    }
+
+    template<typename Fn>
+    void foreach_range(uint32_t key_min, uint32_t key_max, Fn fn) {
+        check_db();
+        struct Context {
+            Fn* fn;
+            std::exception_ptr error;
+        } context{&fn, nullptr};
+
+        auto callback = [](uint32_t key, const void* value, size_t size,
+                           void* user) -> int {
+            Context* ctx = static_cast<Context*>(user);
+            try {
+                (*ctx->fn)(key, value, size);
+                return 0;
+            } catch (...) {
+                ctx->error = std::current_exception();
+                return 1;
+            }
+        };
+
+        stark_result_t r = stark_foreach_range(
+            db, key_min, key_max, callback, &context
+        );
+        if (context.error) std::rethrow_exception(context.error);
+        if (r != STARK_OK) {
+            throw Error(get_last_error());
         }
     }
     

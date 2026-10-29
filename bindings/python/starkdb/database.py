@@ -1,9 +1,17 @@
 """High-level Pythonic Database class for STARKDB."""
 import ctypes
 import os
+import re
 from typing import Optional, Iterator, Tuple, Any, Union, Dict, List
 
-from ._lib import get_lib, STARK_OK, STARK_NOT_FOUND
+from ._lib import (
+    get_lib, STARK_OK, STARK_NOT_FOUND, STARK_STALE_CURSOR, STARK_CLOSED,
+    STARK_BUFFER_TOO_SMALL, STARK_OPEN_OK, STARK_OPEN_CREATE,
+    STARK_OPEN_EXCL, STARK_OPEN_READONLY, STARK_OPEN_ERR_LOCKED,
+    STARK_OPEN_ERR_NOT_FOUND, STARK_OPEN_ERR_READONLY,
+    STARK_OPEN_ERR_CORRUPT, STARK_OPEN_ERR_VERSION, STARK_OPEN_ERR_IO,
+    STARK_OPEN_ERR_INVALID_ARG,
+)
 
 
 class StarkDBError(Exception):
@@ -41,6 +49,37 @@ class StarkDBMemoryError(StarkDBError):
     pass
 
 
+class StarkDBLockedError(StarkDBError):
+    """The database is locked by another process."""
+    pass
+
+
+class StarkDBCorruptError(StarkDBError):
+    """The database file is corrupt or incomplete."""
+    pass
+
+
+class StarkDBVersionError(StarkDBError):
+    """The database file uses a newer format version."""
+    pass
+
+
+class StarkDBReadOnlyError(StarkDBError):
+    """The database cannot be opened for writing."""
+    pass
+
+
+_OPEN_ERROR_MAP = {
+    STARK_OPEN_ERR_LOCKED: StarkDBLockedError,
+    STARK_OPEN_ERR_NOT_FOUND: StarkDBNotFound,
+    STARK_OPEN_ERR_READONLY: StarkDBReadOnlyError,
+    STARK_OPEN_ERR_CORRUPT: StarkDBCorruptError,
+    STARK_OPEN_ERR_VERSION: StarkDBVersionError,
+    STARK_OPEN_ERR_IO: StarkDBIOError,
+    STARK_OPEN_ERR_INVALID_ARG: StarkDBValueError,
+}
+
+
 class Database:
     """STARK Database connection.
 
@@ -57,16 +96,27 @@ class Database:
             print(db["player"])
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, flags: int = STARK_OPEN_CREATE):
         """Open or create a database at the given path.
 
-        Creates .idx and .dat files automatically.
+        Creates .idx and .dat files automatically unless STARK_OPEN_EXCL or
+        STARK_OPEN_READONLY is requested.  Lock/corruption/version failures
+        raise the corresponding StarkDB*Error subclass.
         """
         self._path = path
         self._lib = get_lib()
-        self._handle = self._lib.stark_open(path.encode("utf-8"), 0)
-        if not self._handle:
-            raise StarkDBError(f"Failed to open database: {path}")
+        handle = ctypes.c_void_p()
+        err = ctypes.c_int(STARK_OPEN_OK)
+        result = self._lib.stark_open_ex(
+            ctypes.byref(handle), path.encode("utf-8"),
+            ctypes.c_uint32(flags), ctypes.byref(err)
+        )
+        if result != STARK_OK or not handle.value:
+            msg = self._lib.stark_last_open_error()
+            text = msg.decode("utf-8", errors="replace") if msg else f"Failed to open database: {path}"
+            exc = _OPEN_ERROR_MAP.get(err.value, StarkDBError)
+            raise exc(text)
+        self._handle = handle.value
         self._closed = False
 
     def close(self):
@@ -122,16 +172,22 @@ class Database:
     def get(self, key: int, default: Any = None) -> Optional[bytes]:
         """Get a value by numeric key. Returns default if not found."""
         self._check_open()
-        buf = ctypes.create_string_buffer(65536)
-        size = ctypes.c_size_t(65536)
-        result = self._lib.stark_get(self._handle, ctypes.c_uint32(key), buf, ctypes.byref(size))
-        if result == STARK_OK:
-            return buf.raw[:size.value]
-        elif result == STARK_NOT_FOUND:
-            if default is not None:
-                return default
-            raise StarkDBNotFound(f"Key {key} not found")
-        else:
+        capacity = 4096
+        while True:
+            buf = ctypes.create_string_buffer(capacity)
+            size = ctypes.c_size_t(capacity)
+            result = self._lib.stark_get(
+                self._handle, ctypes.c_uint32(key), buf, ctypes.byref(size)
+            )
+            if result == STARK_OK:
+                return buf.raw[:size.value]
+            if result == STARK_BUFFER_TOO_SMALL:
+                capacity = size.value
+                continue
+            if result == STARK_NOT_FOUND:
+                if default is not None:
+                    return default
+                raise StarkDBNotFound(f"Key {key} not found")
             raise StarkDBError(f"Failed to get key {key}: code {result}")
 
     def get_text(self, key: int, default: Any = None) -> Optional[str]:
@@ -174,16 +230,22 @@ class Database:
     def get_str(self, key: str, default: Any = None) -> Optional[bytes]:
         """Get a value by string key."""
         self._check_open()
-        buf = ctypes.create_string_buffer(65536)
-        size = ctypes.c_size_t(65536)
-        result = self._lib.stark_get_str(self._handle, key.encode("utf-8"), buf, ctypes.byref(size))
-        if result == STARK_OK:
-            return buf.raw[:size.value]
-        elif result == STARK_NOT_FOUND:
-            if default is not None:
-                return default
-            raise StarkDBNotFound(f"String key '{key}' not found")
-        else:
+        capacity = 4096
+        while True:
+            buf = ctypes.create_string_buffer(capacity)
+            size = ctypes.c_size_t(capacity)
+            result = self._lib.stark_get_str(
+                self._handle, key.encode("utf-8"), buf, ctypes.byref(size)
+            )
+            if result == STARK_OK:
+                return buf.raw[:size.value]
+            if result == STARK_BUFFER_TOO_SMALL:
+                capacity = size.value
+                continue
+            if result == STARK_NOT_FOUND:
+                if default is not None:
+                    return default
+                raise StarkDBNotFound(f"String key '{key}' not found")
             raise StarkDBError(f"Failed to get string key '{key}': code {result}")
 
     def get_str_text(self, key: str, default: Any = None) -> Optional[str]:
@@ -228,7 +290,10 @@ class Database:
     # ---- Iteration ----
 
     def __iter__(self):
-        """Iterate over all numeric keys."""
+        """Iterate over all numeric keys.
+
+        Raises StarkDBError if the database is modified during iteration.
+        """
         self._check_open()
         cursor = self._lib.stark_cursor_create(self._handle)
         if not cursor:
@@ -240,14 +305,21 @@ class Database:
                 buf = ctypes.create_string_buffer(65536)
                 size = ctypes.c_size_t(65536)
                 get_result = self._lib.stark_cursor_get(cursor, ctypes.byref(key), buf, ctypes.byref(size))
+                if get_result == STARK_STALE_CURSOR:
+                    raise StarkDBError("iteration invalidated by concurrent modification")
                 if get_result == STARK_OK:
                     yield key.value
                 result = self._lib.stark_cursor_next(cursor)
+            if result == STARK_STALE_CURSOR:
+                raise StarkDBError("iteration invalidated by concurrent modification")
         finally:
             self._lib.stark_cursor_destroy(cursor)
 
     def items(self) -> Iterator[Tuple[int, bytes]]:
-        """Iterate over all (key, value) pairs."""
+        """Iterate over all (key, value) pairs.
+
+        Raises StarkDBError if the database is modified during iteration.
+        """
         self._check_open()
         cursor = self._lib.stark_cursor_create(self._handle)
         if not cursor:
@@ -259,9 +331,13 @@ class Database:
                 buf = ctypes.create_string_buffer(65536)
                 size = ctypes.c_size_t(65536)
                 get_result = self._lib.stark_cursor_get(cursor, ctypes.byref(key), buf, ctypes.byref(size))
+                if get_result == STARK_STALE_CURSOR:
+                    raise StarkDBError("iteration invalidated by concurrent modification")
                 if get_result == STARK_OK:
                     yield key.value, buf.raw[:size.value]
                 result = self._lib.stark_cursor_next(cursor)
+            if result == STARK_STALE_CURSOR:
+                raise StarkDBError("iteration invalidated by concurrent modification")
         finally:
             self._lib.stark_cursor_destroy(cursor)
 
@@ -276,6 +352,35 @@ class Database:
     def count(self) -> int:
         """Return the number of keys."""
         return len(self.keys())
+
+    def foreach_range(self, key_min: int, key_max: int) -> Iterator[Tuple[int, bytes]]:
+        """Iterate raw keys in [key_min, key_max) in ascending order.
+
+        Results are collected before yielding so user code never runs inside the
+        C callback.
+        """
+        self._check_open()
+        items = []
+        callback_type = ctypes.CFUNCTYPE(
+            ctypes.c_int, ctypes.c_uint32, ctypes.c_void_p,
+            ctypes.c_size_t, ctypes.c_void_p
+        )
+
+        @callback_type
+        def collect(key, value, value_size, user):
+            items.append((key, ctypes.string_at(value, value_size)))
+            return 0
+
+        result = self._lib.stark_foreach_range(
+            self._handle, ctypes.c_uint32(key_min), ctypes.c_uint32(key_max),
+            ctypes.cast(collect, ctypes.c_void_p), None
+        )
+        if result != STARK_OK:
+            if result == STARK_CLOSED:
+                raise StarkDBClosed("Database is closed")
+            raise StarkDBError(self.error() or "foreach_range failed")
+        for item in items:
+            yield item
 
     # ---- Binary Array Storage (ML Features) ----
 
@@ -573,6 +678,33 @@ class Database:
         if result != STARK_OK:
             raise StarkDBError("Failed to sync database")
 
+    def compact(self) -> None:
+        """Reclaim space left by overwritten/deleted keys (crash-safe)."""
+        self._check_open()
+        result = self._lib.stark_compact(self._handle)
+        if result != STARK_OK:
+            raise StarkDBError("Failed to compact database")
+
+    def compact_stats(self) -> Dict[str, int]:
+        """Compact the database and return on-disk byte sizes before/after."""
+        self._check_open()
+        before = ctypes.c_uint64()
+        after = ctypes.c_uint64()
+        result = self._lib.stark_compact_stats(
+            self._handle, ctypes.byref(before), ctypes.byref(after)
+        )
+        if result != STARK_OK:
+            raise StarkDBError("Failed to compact database")
+        return {"before_bytes": before.value, "after_bytes": after.value}
+
+    def backup(self, dest_prefix: str) -> None:
+        """Make a consistent copy of this database at dest_prefix."""
+        self._check_open()
+        result = self._lib.stark_backup(self._handle, dest_prefix.encode("utf-8"))
+        if result != STARK_OK:
+            msg = self.error()
+            raise StarkDBError(msg or f"Failed to back up to {dest_prefix}")
+
     def stats(self) -> Dict[str, Any]:
         """Get database statistics."""
         self._check_open()
@@ -668,16 +800,22 @@ class Database:
     def get_typed(self, type_name: str, key: int) -> str:
         """Get a typed record."""
         self._check_open()
-        buf = ctypes.create_string_buffer(8192)
-        result = self._lib.stark_get_typed(
-            self._handle, type_name.encode("utf-8"), ctypes.c_uint32(key),
-            buf, ctypes.c_size_t(8192)
-        )
-        if result == STARK_OK:
-            return buf.value.decode("utf-8", errors="replace")
-        elif result == STARK_NOT_FOUND:
-            raise StarkDBNotFound(f"Typed record {type_name}:{key} not found")
-        raise StarkDBError(f"Failed to get typed data")
+        capacity = 8192
+        while True:
+            buf = ctypes.create_string_buffer(capacity)
+            result = self._lib.stark_get_typed(
+                self._handle, type_name.encode("utf-8"), ctypes.c_uint32(key),
+                buf, ctypes.c_size_t(capacity)
+            )
+            if result == STARK_OK:
+                return buf.value.decode("utf-8", errors="replace")
+            if result == STARK_NOT_FOUND:
+                raise StarkDBNotFound(f"Typed record {type_name}:{key} not found")
+            if result == STARK_BUFFER_TOO_SMALL:
+                match = re.search(r"required (\d+) bytes", self.error())
+                capacity = int(match.group(1)) if match else capacity * 2
+                continue
+            raise StarkDBError("Failed to get typed data")
 
     def undefine_type(self, name: str) -> None:
         """Delete a type definition."""
@@ -688,3 +826,21 @@ class Database:
 
     def __repr__(self):
         return f"Database(path='{self._path}', closed={self._closed})"
+
+
+def upgrade_file(path: str) -> None:
+    """Upgrade a legacy (header-less) STARKDB database to file format version 1."""
+    lib = get_lib()
+    result = lib.stark_upgrade_file(path.encode("utf-8"))
+    if result != STARK_OK:
+        raise StarkDBError(f"Failed to upgrade database: {path}")
+
+
+def restore(src_prefix: str, dest_prefix: str) -> None:
+    """Replace dest_prefix with a cold copy of src_prefix."""
+    lib = get_lib()
+    result = lib.stark_restore(
+        src_prefix.encode("utf-8"), dest_prefix.encode("utf-8")
+    )
+    if result != STARK_OK:
+        raise StarkDBError(f"Failed to restore {src_prefix} to {dest_prefix}")

@@ -12,9 +12,18 @@ Storage *storage_create(Pager *pager) {
     storage->current_offset = 0;
 
     if (pager->num_pages == 0) {
-        pager_allocate_page(pager);
-        storage->current_page = 0;
+        page_num_t page_num = pager_allocate_page(pager);
+        storage->current_page = page_num;
         storage->current_offset = DATA_PAGE_START_RESERVE;
+        // Initialize the on-page header so a later reopen/rollback reads the
+        // correct free offset (rather than 0).
+        void *page = pager_get_page(pager, page_num);
+        if (page) {
+            uint32_t free_off = DATA_PAGE_START_RESERVE;
+            uint32_t zero = 0;
+            memcpy(page, &free_off, sizeof(uint32_t));
+            memcpy((char *)page + 4, &zero, sizeof(uint32_t));
+        }
     } else {
         storage->current_page = pager->num_pages - 1;
         void *page = pager_get_page(pager, storage->current_page);
@@ -76,7 +85,7 @@ DB_Result storage_write(Storage *storage, const void *data, size_t size,
 
 DB_Result storage_read(Storage *storage, data_addr_t addr,
                        void *buffer, size_t *size) {
-    if (!storage || !buffer || !size) return DB_ERROR;
+    if (!storage || !size) return DB_ERROR;
 
     uint32_t page_num = ADDR_PAGE(addr);
     uint32_t offset = ADDR_OFFSET(addr);
@@ -89,9 +98,9 @@ DB_Result storage_read(Storage *storage, data_addr_t addr,
 
     if (data_size == 0 || data_size > PAGE_SIZE) return DB_ERROR;
 
-    if (*size < data_size) {
+    if (buffer == NULL || *size < data_size) {
         *size = data_size;
-        return DB_ERROR;
+        return DB_BUFFER_TOO_SMALL;
     }
 
     memcpy(buffer, (char *)page + offset + sizeof(uint32_t), data_size);
