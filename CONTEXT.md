@@ -567,12 +567,15 @@ stark_result_t stark_commit(stark_db_t* db);
 stark_result_t stark_rollback(stark_db_t* db);
 int stark_in_transaction(stark_db_t* db);
 ```
-> **Important caveat:** In the current C implementation `begin`/`commit`/`rollback`
-> only toggle an in-transaction flag and allocate/free a placeholder log buffer.
-> Writes performed between `begin` and `commit` are applied immediately and
-> `rollback` does **not** actually undo them. Treat transactions as "best-effort"
-> atomic grouping in this version (see §18).
-
+> **Transactions are copy-truncate.** `stark_begin` captures the current `.idx`
+> and `.dat` sizes; writes during the transaction go to the files normally;
+> `stark_rollback` `ftruncate`s both files back to the captured sizes and
+> reinitializes the pager and B-tree root. A `.txn` sentinel file makes this
+> crash-safe: an interrupted transaction is auto-rolled-back on the next
+> `stark_open`. `stark_commit` flushes and deletes the sentinel. See §18.6.
+> Caveats: transaction size is bounded by the page cache
+> (`TABLE_MAX_PAGES = 200`); the whole transaction is held in the pager's
+> in-memory page cache, so very large transactions may hit `STARK_FULL`.
 ---
 
 ## 9. C++ API Reference (`bindings/cpp/stark.hpp`)
